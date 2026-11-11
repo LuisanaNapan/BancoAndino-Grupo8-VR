@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f70bc57562c4d3c8e79fd6a26831fac, type: 3}
+  m_Name: Casino08
+  m_EditorClassIdentifier: Assembly-CSharp::ScenarioData
+  scenarioTitle: Casa de cambio y casino
+  dates: 5 al 13 de febrero de 2016
+  funds: 58000000
+  representedCash: 30000000
+  demonstrationThreshold: 10000000
+  operations: 60f590000000000060f590000000000040899500000000004089950000000000a002940000000000a002940000000000l
+  disclaimer: Recreacion educativa. Entidades, origen y operaciones inventados. El umbral y el cambio son parametros didacticos, no reglas legales. Los US$58 M y aproximadamente US$30 M en efectivo proceden de la guia del curso; no representan una ganancia de apuestas.
