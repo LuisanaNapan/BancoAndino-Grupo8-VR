@@ -38,6 +38,8 @@ public class CasinoProyecto : EditorWindow
         EditorGUILayout.HelpBox("PRUEBA PC: Play > Game. Clic izquierdo en objetos. Manten clic derecho y mueve el mouse para mirar. WASD: desplazarte. 1/2: modos. R: reiniciar. G: mirada. M: musica. Sin celular puedes probar los dos recorridos completos.", MessageType.None);
         if (GUILayout.Button("3. REVISAR PROYECTO", GUILayout.Height(32))) message = Validar();
         if(GUILayout.Button("PRUEBA DE RECORRIDOS (en Play)",GUILayout.Height(30))) CasinoRuntimeCheck.Begin();
+        if (GUILayout.Button("PRUEBA DE RECORRIDOS Y CAPTURAS (en Play)", GUILayout.Height(30)))
+            CasinoRuntimeCheck.Begin(capture: true);
         if (GUILayout.Button("4. GENERAR APK DEL CASINO", GUILayout.Height(42))) EditorApplication.delayCall += () => Run(Build);
         EditorGUILayout.HelpBox(string.IsNullOrEmpty(message) ? "Comprobaciones de configuracion correctas. Falta probar el APK en Android." : message, MessageType.Info);
         EditorGUILayout.HelpBox("El APK de VR necesita una prueba real de vista doble y giro. Los controles de PC no validan sensores ni el inicio de XR en el telefono.", MessageType.None);
@@ -204,7 +206,7 @@ public class CasinoProyecto : EditorWindow
     }
     static void Background(RectTransform root,Color color)
     {
-        var edge=Rect(root,"Borde",Vector2.zero,root.sizeDelta+Vector2.one*8).gameObject.AddComponent<Image>();edge.color=new Color(.72f,.53f,.25f);
+        var edge=Rect(root,"Borde",Vector2.zero,root.sizeDelta+Vector2.one*8).gameObject.AddComponent<Image>();edge.color=new Color(.14f,.63f,.72f);
         var bg=Rect(root,"Fondo",Vector2.zero,root.sizeDelta).gameObject.AddComponent<Image>();bg.color=color;
     }
     static UnityEngine.UI.Text Label(Transform parent,string value,Vector2 at,Vector2 size,int pixels,Font type,Color color)
@@ -247,12 +249,12 @@ public class CasinoProyecto : EditorWindow
     static void BuildMenu(float x)
     {
         var menu=Panel("Menu_recorrido",new Vector3(x-4.85f,1.7f,-3.2f),new Vector2(1.3f,1.65f));menu.rotation=Quaternion.Euler(0,-75,0);Background(menu,new Color(.018f,.05f,.065f));
-        Label(menu,"RECORRIDO",new Vector2(0,475),new Vector2(900,105),64,displayFont,new Color(1,.83f,.43f));
+        Label(menu,"OPERACIONES",new Vector2(0,475),new Vector2(900,105),64,displayFont,new Color(1,.83f,.43f));
         Control(menu,"Modo_Ataque","ATAQUE",CasinoAction.Attack,new Vector2(0,240),true,false);
         Control(menu,"Modo_Defensa","DEFENSA",CasinoAction.Defense,new Vector2(0,65),true,false);
         Control(menu,"Reiniciar","REINICIAR",CasinoAction.Restart,new Vector2(0,-160),true,false);
         Control(menu,"Musica","MUSICA / SILENCIAR",CasinoAction.ToggleMusic,new Vector2(0,-335),true,false);
-        Control(menu,"Creditos","CREDITOS",CasinoAction.Credits,new Vector2(0,-510),true,false);
+        Control(menu,"Repetir_guia","REPETIR GUÍA",CasinoAction.ReplayGuide,new Vector2(0,-510),true,false);
     }
     static void BuildPortal(float x,bool casino)
     {
@@ -334,23 +336,23 @@ public class CasinoProyecto : EditorWindow
         neonGold=Mat("NeonGold",new Color(1f,.84f,.37f));
         neonTeal=Mat("NeonTeal",new Color(.1f,.9f,.85f));
         
-        { var m = Mat("Art_cream", new Color(0.76f,0.73f,0.63f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.76f,0.73f,0.63f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
-        { var m = Mat("Art_plaster", new Color(0.91f,0.87f,0.76f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.91f,0.87f,0.76f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
-        { var m = Mat("Art_wood", new Color(0.19f,0.085f,0.05f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.19f,0.085f,0.05f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
-        { var m = Mat("Art_woodlight", new Color(0.32f,0.17f,0.09f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.32f,0.17f,0.09f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
-        { var m = Mat("Art_gold", new Color(0.7f,0.47f,0.18f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.7f,0.47f,0.18f)); m.SetFloat("_Smoothness", .5f); EditorUtility.SetDirty(m); }
-        { var m = Mat("Art_brasslight", new Color(0.96f,0.75f,0.39f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.96f,0.75f,0.39f)); m.SetFloat("_Smoothness", .5f); EditorUtility.SetDirty(m); }
-        { var m = Mat("Art_teal", new Color(0.035f,0.24f,0.24f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.035f,0.24f,0.24f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
-        { var m = Mat("Art_felt", new Color(0.035f,0.27f,0.19f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.035f,0.27f,0.19f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
+        { var m = Mat("Art_cream", new Color(0.22f,0.3f,0.39f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.22f,0.3f,0.39f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
+        { var m = Mat("Art_plaster", new Color(0.23f,0.32f,0.42f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.23f,0.32f,0.42f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
+        { var m = Mat("Art_wood", new Color(0.06f,0.12f,0.19f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.06f,0.12f,0.19f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
+        { var m = Mat("Art_woodlight", new Color(0.12f,0.23f,0.32f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.12f,0.23f,0.32f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
+        { var m = Mat("Art_gold", new Color(0.1f,0.52f,0.63f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.1f,0.52f,0.63f)); m.SetFloat("_Smoothness", .5f); EditorUtility.SetDirty(m); }
+        { var m = Mat("Art_brasslight", new Color(0.45f,0.78f,0.88f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.45f,0.78f,0.88f)); m.SetFloat("_Smoothness", .5f); EditorUtility.SetDirty(m); }
+        { var m = Mat("Art_teal", new Color(0.04f,0.29f,0.39f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.04f,0.29f,0.39f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
+        { var m = Mat("Art_felt", new Color(0.045f,0.26f,0.29f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.045f,0.26f,0.29f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
         { var m = Mat("Art_navy", new Color(0.035f,0.07f,0.09f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.035f,0.07f,0.09f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
-        { var m = Mat("Art_burgundy", new Color(0.26f,0.035f,0.065f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.26f,0.035f,0.065f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
-        { var m = Mat("Art_velvet", new Color(0.48f,0.055f,0.09f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.48f,0.055f,0.09f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
+        { var m = Mat("Art_burgundy", new Color(0.1f,0.11f,0.23f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.1f,0.11f,0.23f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
+        { var m = Mat("Art_velvet", new Color(0.22f,0.15f,0.38f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.22f,0.15f,0.38f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
         { var m = Mat("Art_paper", new Color(0.93f,0.9f,0.79f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.93f,0.9f,0.79f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
         { var m = Mat("Art_black", new Color(0.018f,0.025f,0.027f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.018f,0.025f,0.027f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
         { var m = Mat("Art_screen", new Color(0.03f,0.48f,0.49f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.03f,0.48f,0.49f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
-        { var m = Mat("Art_light", new Color(1.0f,0.83f,0.48f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(1.0f,0.83f,0.48f)); m.SetFloat("_Smoothness", .18f); m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", new Color(1f,.7f,.3f)); EditorUtility.SetDirty(m); }
-        { var m = Mat("Art_carpet", new Color(0.105f,0.065f,0.09f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.105f,0.065f,0.09f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
-        { var m = Mat("Art_carpetline", new Color(0.27f,0.15f,0.16f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.27f,0.15f,0.16f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
+        { var m = Mat("Art_light", new Color(.55f,.88f,1f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(.55f,.88f,1f)); m.SetFloat("_Smoothness", .18f); m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", new Color(.22f,.55f,.75f)); EditorUtility.SetDirty(m); }
+        { var m = Mat("Art_carpet", new Color(0.075f,0.11f,0.19f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.075f,0.11f,0.19f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
+        { var m = Mat("Art_carpetline", new Color(0.15f,0.31f,0.44f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.15f,0.31f,0.44f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
         { var m = Mat("Art_blue", new Color(0.06f,0.29f,0.55f)); m.shader = Shader.Find("Universal Render Pipeline/Lit"); m.SetColor("_BaseColor", new Color(0.06f,0.29f,0.55f)); m.SetFloat("_Smoothness", .18f); EditorUtility.SetDirty(m); }
         buildPhase="Fuentes";
         controlsFont=AssetDatabase.LoadAssetAtPath<Font>(Root+"/Fonts/CasinoControls.ttf");
@@ -390,24 +392,43 @@ public class CasinoProyecto : EditorWindow
         if (data == null) { data = ScriptableObject.CreateInstance<ScenarioData>(); AssetDatabase.CreateAsset(data, Root + "/Data/Casino08.asset"); }
         game.data=data;ui.font=font;ui.displayFont=displayFont;ui.view=camera;
         var counts=new List<UnityEngine.UI.Text>();var modes=new List<UnityEngine.UI.Text>();var objectives=new List<UnityEngine.UI.Text>();
-        RenderSettings.ambientMode=AmbientMode.Flat;RenderSettings.ambientLight=new Color(.6f,.57f,.51f);
+        RenderSettings.ambientMode=AmbientMode.Flat;RenderSettings.ambientLight=new Color(.47f,.54f,.64f);
         var sun=new GameObject("Luz_suave").AddComponent<Light>();sun.type=LightType.Directional;sun.intensity=.65f;sun.transform.rotation=Quaternion.Euler(45,-25,0);sun.shadows=LightShadows.None;
         for(int room=0;room<2;room++)
         {
             float x=room*20;bool casino=room==1;buildPhase=casino?"Modelos del casino":"Modelos de casa de cambio";LoadEnvironment(x,casino?"CasinoHorizonte":"CasaCambio");
             buildPhase=casino?"Interfaz del casino":"Interfaz de casa de cambio";
-            var brand=Panel("Letrero",new Vector3(x,2.96f,5.27f),new Vector2(6.23f,1.93f));
-            Picture(brand,Root+"/Branding/"+(casino?"Casino":"Cambio")+".png",Vector2.zero,new Vector2(1000,310));
-            var title=Panel("Rotulo_superior",new Vector3(x,4.33f,5.28f),new Vector2(6,.6f));
-            Label(title,casino?"CASINO HORIZONTE":"BANCO ANDINO",Vector2.zero,new Vector2(980,92),64,displayFont,new Color(1,.83f,.43f));
-            for(int i=0;i<2;i++){var l=new GameObject("Luz_interior").AddComponent<Light>();l.type=LightType.Point;l.range=9;l.intensity=2.2f;l.color=new Color(1,.86f,.65f);l.shadows=LightShadows.None;l.transform.position=new Vector3(x+(i==0?-2:2),3.7f,0);}
+            var monitor = Panel("Monitor_del_incidente", new Vector3(x,2.96f,5.27f), new Vector2(6.23f,1.93f));
+            Background(monitor, new Color(.022f,.062f,.10f));
+            var blue = new Color(.37f,.91f,1f);
+            var pale = new Color(.85f,.93f,1f);
+            var strip = Rect(monitor, "Linea de señal", new Vector2(0,145), new Vector2(960,5)).gameObject.AddComponent<Image>();
+            strip.color = blue;
+            Label(monitor, casino ? "CASINO HORIZONTE / CASO 08" : "BANCO ANDINO / CASO 08",
+                new Vector2(0,108), new Vector2(950,49), 33, displayFont, blue);
+            if (casino)
+            {
+                Label(monitor,"TRAZABILIDAD DE FONDOS",new Vector2(0,22),new Vector2(950,66),45,displayFont,pale);
+                Label(monitor,"01 FICHAS  /  02 CARTAS  /  03 CANJE",new Vector2(0,-79),new Vector2(950,58),30,controlsFont,blue);
+            }
+            else
+            {
+                ui.incidentTitle = Label(monitor,"INCIDENTE EN CURSO",new Vector2(0,24),new Vector2(950,66),42,displayFont,pale);
+                ui.incidentInstruction = Label(monitor,"Selecciona un recorrido",new Vector2(0,-68),new Vector2(950,90),31,font,pale);
+                ui.incidentStrip = strip;
+            }
+            for(int i=0;i<2;i++){var l=new GameObject("Luz_interior").AddComponent<Light>();l.type=LightType.Point;l.range=9;l.intensity=2.2f;l.color=casino?new Color(.68f,.69f,1f):new Color(.58f,.86f,1f);l.shadows=LightShadows.None;l.transform.position=new Vector3(x+(i==0?-2:2),3.7f,0);}
+            var auditSign = Panel("Estado_del_caso", new Vector3(x, 3.77f, 5.23f), new Vector2(4.9f, .38f));
+            Background(auditSign, new Color(.016f,.09f,.12f));
+            Label(auditSign, casino ? "TRAMO 02 / TRAZABILIDAD DE FONDOS" : "TRAMO 01 / MONITOREO DE OPERACIONES",
+                Vector2.zero, new Vector2(960, 60), 35, controlsFont, new Color(.38f,.95f,.90f));
             BuildMenu(x);
             var console=Panel(casino?"Consola_Mesa":"Consola_Analisis",new Vector3(x-3.65f,1.95f,1.6f),new Vector2(1.8f,2.3f));
             Box("Base_consola",new Vector3(x-3.65f,.08f,1.6f),new Vector3(.75f,.16f,.55f),dark);
             Shape("Soporte_consola",PrimitiveType.Cylinder,new Vector3(x-3.65f,.45f,1.6f),new Vector3(.18f,.37f,.18f),gold);
             console.rotation=Quaternion.Euler(0,-40,0);Background(console,new Color(.018f,.05f,.065f));
             var col=console.gameObject.AddComponent<BoxCollider>();col.size=new Vector3(1030,1310,14); // physical kiosk, behind its controls
-            Label(console,casino?"MESA DE BACARA":"INVESTIGACION",new Vector2(0,550),new Vector2(880,90),56,displayFont,new Color(.94f,.76f,.40f));
+            Label(console,casino?"MESA DE BACARÁ":"CONTROL DE FONDOS",new Vector2(0,550),new Vector2(880,90),56,displayFont,new Color(.94f,.76f,.40f));
             modes.Add(Label(console,"PULSA PLAY",new Vector2(0,452),new Vector2(900,62),34,controlsFont,new Color(.35f,.86f,.81f)));
             objectives.Add(Label(console,"Sigue el recorrido",new Vector2(0,300),new Vector2(860,175),46,font,Color.white));
             counts.Add(Label(console,"",new Vector2(0,70),new Vector2(860,200),35,font,new Color(.80f,.85f,.84f)));

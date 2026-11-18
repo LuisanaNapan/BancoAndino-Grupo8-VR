@@ -7,6 +7,6 @@ EditorBuildSettings:
   m_Scenes:
   - enabled: 1
     path: Assets/Casino/Scenes/Casino_VR.unity
-    guid: 1396af25ac9983d49b57f7ca713172ad
+    guid: 5876b9aa6caa61f46b8a6cdb256a9d79
   m_configObjects:
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 126ef5697c514eaf97c473acfd623e0e, type: 2}

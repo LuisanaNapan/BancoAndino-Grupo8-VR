@@ -5,7 +5,8 @@ using System.Collections.Generic;
 public class UIManager : MonoBehaviour
 {
     public Text[] counterTexts,modeTexts,objectiveTexts;
-    public Text infoText;
+    public Text infoText, incidentTitle, incidentInstruction;
+    public Image incidentStrip;
     public Transform infoRoot;
     public Camera view;
     public Font font,displayFont;
@@ -42,9 +43,41 @@ public class UIManager : MonoBehaviour
     public void CloseInfo(){infoRoot.gameObject.SetActive(false);}
     public void Prompt(string text){} // No floating text over the table.
     public void Result(string text){}
+    void RefreshIncident(GameManager g)
+    {
+        if (incidentTitle == null || incidentInstruction == null || incidentStrip == null) return;
+        Color color = new Color32(255, 126, 128, 255);
+        string title = "INCIDENTE EN CURSO";
+        string instruction = "Elige Defensa o abre el libro para seguir el dinero.";
+        if (g.Frozen)
+        {
+            color = new Color32(101, 240, 185, 255);
+            title = "FONDOS RETENIDOS";
+            instruction = "El portal al casino quedó bloqueado.";
+        }
+        else if (g.mode == SimMode.Defensa)
+        {
+            color = new Color32(94, 229, 255, 255);
+            title = "INVESTIGACIÓN ABIERTA";
+            instruction = !g.HasEvidence("libro") ? "01 / Abre el LIBRO del mostrador"
+                : !g.HasEvidence("alerta") ? "02 / Revisa la ALERTA de la terminal"
+                : "03 / Pulsa EMITIR REPORTE en la consola";
+        }
+        incidentTitle.text = title;
+        incidentTitle.color = color;
+        incidentInstruction.text = instruction;
+        incidentStrip.color = color;
+    }
+
     public void Refresh(GameManager g)
     {
+        RefreshIncident(g);
         foreach(var t in counterTexts)if(t!=null)t.text=g.counter.Summary(g.data);
-        foreach(var t in modeTexts)if(t!=null)t.text=g.mode.ToString().ToUpperInvariant()+" / Pistas "+g.EvidenceCount+" de 3";
+        bool defense = g.mode == SimMode.Defensa;
+        int reviewed = defense
+            ? (g.HasEvidence("libro") ? 1 : 0) + (g.HasEvidence("alerta") ? 1 : 0)
+            : g.EvidenceCount;
+        foreach (var t in modeTexts)
+            if (t != null) t.text = g.mode.ToString().ToUpperInvariant() + " / Pistas " + reviewed + " de " + (defense ? 2 : 3);
     }
 }

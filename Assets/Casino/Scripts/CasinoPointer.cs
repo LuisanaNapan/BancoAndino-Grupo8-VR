@@ -65,6 +65,7 @@ public class CasinoPointer : MonoBehaviour
                 }
                 if(keyboard.mKey.wasPressedThisFrame && GameManager.I!=null)GameManager.I.audioManager.ToggleMusic();
                 if (keyboard.gKey.wasPressedThisFrame) { editorDwell = !editorDwell; elapsed=0; consumed=false; }
+                if (keyboard.vKey.wasPressedThisFrame) GameManager.I.Act(CasinoAction.ReplayGuide);
                 if (keyboard.digit1Key.wasPressedThisFrame) GameManager.I.ResetScenario(SimMode.Ataque);
                 if (keyboard.digit2Key.wasPressedThisFrame) GameManager.I.ResetScenario(SimMode.Defensa);
                 if (keyboard.rKey.wasPressedThisFrame) GameManager.I.ResetScenario(GameManager.I.mode);
