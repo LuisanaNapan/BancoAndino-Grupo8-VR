@@ -5,6 +5,16 @@ public class AudioManager : MonoBehaviour
     public AudioSource effects, ambience;
     public AudioClip selectClip, alertClip, chipsClip, endingClip, paperClip, registerClip;
     bool muted;
+    float musicLevel;
+    bool ducked;
+    void Awake() { if (ambience != null) musicLevel = ambience.volume; }
+    public void DuckMusic(bool value) { ducked = value; }
+    void Update()
+    {
+        if (ambience == null) return;
+        float target = musicLevel * (ducked ? .22f : 1f);
+        ambience.volume = Mathf.MoveTowards(ambience.volume, target, Time.unscaledDeltaTime * .65f);
+    }
     public void Select(){Play(selectClip);}
     public void Alert(){Play(alertClip);}
     public void Chips(){Play(chipsClip);}

@@ -21,9 +21,11 @@ public class CasinoActionGate : MonoBehaviour
         else if(background!=null)background.color=target.IsFocused?target.focusColor:normal;
         if(label!=null)
         {
-            label.text=caption;
-            if(target.action==CasinoAction.PlaceBank&&g.BankPlaced)label.text="BANCA: LISTO";
-            if(target.action==CasinoAction.PlacePlayer&&g.PlayerPlaced)label.text="JUGADOR: LISTO";
+            string current=target.action==CasinoAction.MuteNarration ? g.VoiceStatus : caption;
+            if(target.action==CasinoAction.Finish&&g.ExplanationAccepted)current="CERRAR CASO";
+            if(target.action==CasinoAction.PlaceBank&&g.BankPlaced)current="BANCA: LISTO";
+            if(target.action==CasinoAction.PlacePlayer&&g.PlayerPlaced)current="JUGADOR: LISTO";
+            if(label.text!=current)label.text=current;
         }
     }
 }

@@ -6,12 +6,24 @@ public class UIManager : MonoBehaviour
 {
     public Text[] counterTexts,modeTexts,objectiveTexts;
     public Text infoText, incidentTitle, incidentInstruction;
+    [System.NonSerialized] public Text terminalStatus;
     public Image incidentStrip;
     public Transform infoRoot;
     public Camera view;
     public Font font,displayFont;
     readonly List<string> pages=new List<string>();int page;
+    CasinoFieldDisplay field;
+    public string Reading => field == null ? "" : field.Reading;
+    public string Subtitle => field == null ? "" : field.Subtitle;
     public bool InfoOpen {get{return infoRoot!=null&&infoRoot.gameObject.activeSelf;}}
+    public void PrepareField(GameManager game)
+    {
+        field = gameObject.AddComponent<CasinoFieldDisplay>();
+        field.Initialize(this, game);
+        CloseInfo();
+    }
+    public void Read(string title, string text) => field.SetReading(title, text);
+    public void Caption(string text, float duration, bool singleLine = false) => field.SetCaption(text, duration, singleLine);
     void Update()
     {
         var g=GameManager.I;if(g==null)return;
@@ -19,6 +31,13 @@ public class UIManager : MonoBehaviour
     }
     public void Show(string message)
     {
+        if (field != null)
+        {
+            int firstLine = message.IndexOf('\n');
+            Read(firstLine < 0 ? message : message.Substring(0, firstLine),
+                firstLine < 0 ? "" : message.Substring(firstLine + 1));
+            return;
+        }
         pages.Clear();var lines=new List<string>();
         foreach(string paragraph in message.Split('\n'))
         {
@@ -48,20 +67,21 @@ public class UIManager : MonoBehaviour
         if (incidentTitle == null || incidentInstruction == null || incidentStrip == null) return;
         Color color = new Color32(255, 126, 128, 255);
         string title = "INCIDENTE EN CURSO";
-        string instruction = "Elige Defensa o abre el libro para seguir el dinero.";
+        string instruction = "Flujo abierto · Casa de cambio → Casino Horizonte";
         if (g.Frozen)
         {
             color = new Color32(101, 240, 185, 255);
             title = "FONDOS RETENIDOS";
-            instruction = "El portal al casino quedó bloqueado.";
+            instruction = $"{MoneyCounter.Short(g.counter.frozen)} retenidos · US$ 0 al casino";
         }
         else if (g.mode == SimMode.Defensa)
         {
             color = new Color32(94, 229, 255, 255);
             title = "INVESTIGACIÓN ABIERTA";
-            instruction = !g.HasEvidence("libro") ? "01 / Abre el LIBRO del mostrador"
-                : !g.HasEvidence("alerta") ? "02 / Revisa la ALERTA de la terminal"
-                : "03 / Pulsa EMITIR REPORTE en la consola";
+            bool detected = g.HasEvidence("libro")
+                && StructuringDetector.Detect(g.data.operations, g.data.demonstrationThreshold, out _, out _);
+            string pattern = detected ? "Patrón detectado" : g.HasEvidence("libro") ? "Sin patrón" : "Patrón pendiente";
+            instruction = pattern + (g.HasEvidence("alerta") ? " · Alerta verificada" : " · Alerta pendiente");
         }
         incidentTitle.text = title;
         incidentTitle.color = color;
@@ -72,6 +92,8 @@ public class UIManager : MonoBehaviour
     public void Refresh(GameManager g)
     {
         RefreshIncident(g);
+        if (terminalStatus != null)
+            terminalStatus.text = g.HasEvidence("alerta") ? "Aviso revisado" : "Alerta recibida";
         foreach(var t in counterTexts)if(t!=null)t.text=g.counter.Summary(g.data);
         bool defense = g.mode == SimMode.Defensa;
         int reviewed = defense

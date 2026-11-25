@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public enum CasinoAction { Ledger, Receipt, SharedAlert, Convert, Report, ToCasino, ToExchange, Bet, CashOut, Finish, Attack, Defense, Restart, Credits, ExplainCorrect, ExplainWrong, Approach, Overview, ToggleMusic, PlaceBank, PlacePlayer, Deal, Host, InfoNext, InfoClose, ToConsole, ReplayGuide }
+public enum CasinoAction { Ledger, Receipt, SharedAlert, Convert, Report, ToCasino, ToExchange, Bet, CashOut, Finish, Attack, Defense, Restart, Credits, ExplainCorrect, ExplainWrong, Approach, Overview, ToggleMusic, PlaceBank, PlacePlayer, Deal, Host, InfoNext, InfoClose, ToConsole, ReplayGuide, MuteNarration, VoiceDown, VoiceUp }
 
 public class CasinoInteractable : MonoBehaviour
 {

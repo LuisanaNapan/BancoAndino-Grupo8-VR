@@ -21,6 +21,8 @@ public class GameManager : MonoBehaviour
     public bool BankPlaced { get { return bankPlaced; } }
     public bool PlayerPlaced { get { return playerPlaced; } }
     public bool Completed { get { return finished; } }
+    public bool ExplanationAccepted => explained;
+    public string VoiceStatus => narrator == null || narrator.Muted ? "VOZ OFF" : $"VOZ {Mathf.RoundToInt(narrator.Volume * 100)}%";
     public bool CashCollected { get { return counter.cashOut>0; } }
     public bool HasEvidence(string id){return evidence.Contains(id);}
     public bool VisibleAction(CasinoAction a)
@@ -51,24 +53,27 @@ public class GameManager : MonoBehaviour
     {
         get
         {
-            if (finished) return "CASO COMPLETADO / Prueba el otro modo en la estacion izquierda";
+            if (finished) return Frozen ? "Portal bloqueado · Compara con Ataque" : "Caso completado · Compara con Defensa";
             if (mode == SimMode.Defensa)
             {
-                if (!evidence.Contains("libro")) return "DEFENSA 1/3 / Revisa el LIBRO del mostrador";
-                if (!evidence.Contains("alerta")) return "DEFENSA 2/3 / Revisa la ALERTA de la terminal";
-                return "DEFENSA 3/3 / EMITIR ROS: detener el dinero antes del casino";
+                if (!evidence.Contains("libro")) return "Defensa · Revisa el libro del mostrador";
+                if (!evidence.Contains("alerta")) return "Defensa · Revisa la alerta de la terminal";
+                return "Defensa · Emite el reporte en la consola";
             }
-            if(evidence.Count<3) return "PASO 1/6 / Revisa los 3 objetos del mostrador ("+evidence.Count+"/3)";
-            if(!converted) return "PASO 2/6 / REGISTRAR CAMBIO: consola de analisis";
-            if(!inCasino) return "PASO 3/6 / Mira el portal IR AL CASINO, a la derecha";
-            if(chipAnimator.running)return "MESA / Observa como se colocan tus fichas";
-            if(!bankPlaced)return "Elige BANCA o JUGADOR en la consola";
-            if(!playerPlaced)return "Completa el segundo grupo de fichas";
+            if(!evidence.Contains("libro")) return "Ataque · Revisa el libro del mostrador";
+            if(!evidence.Contains("cambio")) return "Ataque · Revisa el comprobante de cambio";
+            if(!evidence.Contains("alerta")) return "Ataque · Revisa la alerta de la terminal";
+            if(!converted) return "Registra el cambio en la consola";
+            if(!inCasino) return "Usa el portal para entrar al casino";
+            if(chipAnimator.running)return "Observa cómo se colocan las fichas";
+            if(!bankPlaced&&!playerPlaced)return "Coloca fichas en Banca o Jugador";
+            if(!bankPlaced)return "Completa el grupo de Banca";
+            if(!playerPlaced)return "Completa el grupo de Jugador";
             if(revealRequested&&!dealt)return "Observa el giro de las cartas sobre el tapete";
             if(!dealt)return "Revela las cartas desde la consola lateral";
-            if(counter.cashOut==0) return "PASO 5/6 / Activa CANJEAR FICHAS";
-            if(explaining&&!explained) return "PASO 6/6 / Elige la explicacion en la consola lateral";
-            return "PASO 6/6 / EXPLICAR EL CASO: consola lateral";
+            if(counter.cashOut==0) return "Canjea las fichas en la consola";
+            if(explaining&&!explained) return "Elige la explicación en la consola lateral";
+            return explained ? "Cierra el caso en la consola" : "Abre Explicar el caso en la consola";
         }
     }
     public bool IsNext(CasinoAction a)
@@ -80,7 +85,9 @@ public class GameManager : MonoBehaviour
             if(!evidence.Contains("alerta"))return a==CasinoAction.SharedAlert;
             return a==CasinoAction.Report;
         }
-        if(evidence.Count<3)return (a==CasinoAction.Ledger&&!evidence.Contains("libro"))||(a==CasinoAction.Receipt&&!evidence.Contains("cambio"))||(a==CasinoAction.SharedAlert&&!evidence.Contains("alerta"));
+        if(!evidence.Contains("libro"))return a==CasinoAction.Ledger;
+        if(!evidence.Contains("cambio"))return a==CasinoAction.Receipt;
+        if(!evidence.Contains("alerta"))return a==CasinoAction.SharedAlert;
         if(!converted)return a==CasinoAction.Convert;
         if(!inCasino)return a==CasinoAction.ToCasino;
         if(chipAnimator.running)return false;
@@ -112,40 +119,46 @@ public class GameManager : MonoBehaviour
             foreach(var pointer in FindObjectsByType<CasinoPointer>(FindObjectsSortMode.None))pointer.enabled=false;
             I=null;enabled=false;return;
         }
+        ui.PrepareField(this);
+        narrator = gameObject.AddComponent<CasinoNarrator>();
+        narrator.Initialize(ui, audioManager);
+        CasinoOperationsRoom.Install(this);
         ResetScenario(SimMode.Ataque);
     }
     void OnDestroy() { if (I == this) I = null; }
     public void RegisterEvidence(string id) { evidence.Add(id); ui.Refresh(this); }
     public void ApplyDefense(string id) { defenses.Add(id); ui.Refresh(this); }
     CasinoNarrator narrator;
-    string lastGuide;
-
-    void Guide(string speech)
+    void Guide(string id, string speech)
     {
-        if (narrator == null) narrator = gameObject.AddComponent<CasinoNarrator>();
-        lastGuide = speech;
-        narrator.Speak(speech);
+        narrator.Speak(id, speech);
     }
 
-    void Show(string text, string speech = null)
+    void Show(string text, string speech = null, string clip = null)
     {
         ui.Show(text);
         ui.Refresh(this);
-        if (speech != null) Guide(speech);
+        if (speech != null) Guide(clip, speech);
     }
     public void ResetScenario(SimMode nextMode)
     {
         mode = nextMode; bankPlaced=false; playerPlaced=false; dealt=false; revealRequested=false; explaining=false; finished=false; evidence.Clear(); defenses.Clear(); converted = false; inCasino = false;
         betComplete = false; explained = false; aml.frozen = false; counter.ResetCounter();
         chipAnimator.ResetChips(); Teleport(exchangeSpawn);
-        ui.Result("CIERRE DEL CASO\nCompleta el recorrido para comparar los resultados.");
-        if (mode == SimMode.Defensa)
-        {
-            Show("DEFENSA / PASO 1 DE 3\nEres el analista de ciberseguridad.\nCierra esta tarjeta y selecciona LIBRO en el mostrador.\nEn visor, mantén la mirada sobre el objeto.",
-                "Eres el analista. Cierra esta tarjeta y selecciona el libro del mostrador. Tu primera tarea es relacionar los movimientos del mismo origen.");
-            return;
-        }
-        Show("CENTRO DE CIBERSEGURIDAD / CASO 08\nEl dinero ya salió del banco mediante órdenes fraudulentas.\nCierra esta tarjeta y abre LIBRO para seguir el dinero en Ataque.\nPara investigar y detenerlo, elige DEFENSA en el panel izquierdo o pulsa 2 en PC.", "Estás en el centro de ciberseguridad. El caso empieza después de unas transferencias fraudulentas. Si eres el analista, selecciona Defensa en el panel izquierdo. Para seguir la ruta en Ataque, cierra la tarjeta y abre el libro del mostrador.");
+        ui.Read("", "");
+        ui.Refresh(this);
+        bool defense = mode == SimMode.Defensa;
+        narrator.Welcome(
+            ("inicio-saludo", "Hola, qué bueno que llegaste. Soy tu compañera del equipo de investigación del Banco Andino. Necesitamos tu ayuda."),
+            ("inicio-incidente", "Alguien entró en los sistemas del banco y envió dinero sin autorización."),
+            ("inicio-rastro", "Sabemos que una parte pasó por esta casa de cambio. Podría terminar en el casino. Tenemos que averiguar cómo."),
+            defense
+                ? ("inicio-mision-defensa", "Juntemos las pistas. Así podremos decidir si debemos detener el dinero antes de que llegue al casino.")
+                : ("inicio-mision-ataque", "Vamos a reconstruir el recorrido del dinero. Al relacionar las pistas, podremos entender cómo llegó hasta allí."),
+            Application.isEditor
+                ? ("inicio-control-editor", "Abre el libro con un clic. Para probar la mirada, pulsa G, gira con el botón derecho y mantén la mira hasta completar el círculo.")
+                : ("inicio-control-cardboard", "¿Ves el libro sobre el mostrador? Míralo. El puntero de tu mano sigue tu mirada. Mantenlo sobre el libro hasta completar el círculo."),
+            ("inicio-acompana", "Vamos paso a paso. Yo te acompañaré."));
     }
     void Teleport(Transform destination)
     {
@@ -162,12 +175,15 @@ public class GameManager : MonoBehaviour
     }
     public void Act(CasinoAction action)
     {
-        if (action == CasinoAction.ReplayGuide)
+        switch (action)
         {
-            if (!string.IsNullOrEmpty(lastGuide)) Guide(lastGuide);
-            return;
+            case CasinoAction.ReplayGuide: narrator.Replay(); return;
+            case CasinoAction.MuteNarration: narrator.ToggleMute(); return;
+            case CasinoAction.VoiceDown: narrator.AdjustVolume(-.25f); return;
+            case CasinoAction.VoiceUp: narrator.AdjustVolume(.25f); return;
         }
         audioManager.SelectAction(action);
+        ui.Read("", "");
         switch (action)
         {
             case CasinoAction.InfoNext: ui.NextInfo(); return;
@@ -175,8 +191,8 @@ public class GameManager : MonoBehaviour
             case CasinoAction.Host:
                 if (!inCasino)
                 {
-                    Show("ANALISTA / ANTECEDENTE BANCARIO\nUna intrusión permitió enviar órdenes de pago fraudulentas.\nControles propuestos: doble autorización y monitoreo de pagos.\nTu tarea aquí es seguir los fondos.\n"+Objective,
-                        "Una intrusión permitió enviar órdenes de pago fraudulentas. En el banco, la doble autorización y el monitoreo de pagos son controles propuestos. Tu tarea aquí empieza cuando los fondos llegan a la casa de cambio.");
+                    Show("Sobre el caso · Recreación educativa\nInspirada en el incidente de Bangladesh Bank de 2016. Una intrusión dio lugar a pagos fraudulentos. US$81 millones llegaron a cuentas en Filipinas.\nBanco Andino, OR-08 y las cifras del ejercicio son parte de la simulación.",
+                        "La recreación comienza después del envío de órdenes fraudulentas. En el banco, la doble autorización y el monitoreo de pagos son controles propuestos. Retoma el objetivo que ves arriba.", "antecedente");
                     return;
                 }
                 if(inCasino&&dealt){Show("LO QUE ACABAS DE VER\nBanca 7 y Jugador 6: un lado gana y el otro pierde.\nLas apuestas opuestas no garantizan beneficio.\nLo investigado es el origen del dinero y su trazabilidad.");return;}
@@ -204,22 +220,25 @@ public class GameManager : MonoBehaviour
             case CasinoAction.Defense: ResetScenario(SimMode.Defensa); return;
             case CasinoAction.Restart: ResetScenario(mode); return;
             case CasinoAction.Ledger:
-                RegisterEvidence("libro");
-                long total; int count;
-                bool suspicious = StructuringDetector.Detect(data.operations, data.demonstrationThreshold, out total, out count);
-                Show("LIBRO / ORIGEN OR-08\n6 operaciones suman US$58 M.\nUmbral de la demo: US$10 M.\nSiguiente en Defensa: ALERTA de la terminal.", "El libro muestra seis operaciones del mismo origen. El detector suma cincuenta y ocho millones y los compara con el umbral didáctico de diez millones. En Defensa, cierra la tarjeta y revisa la alerta de la terminal. En Ataque, revisa también el comprobante."); return;
+                OpenLedger();
+                return;
             case CasinoAction.Receipt:
-                RegisterEvidence("cambio");
-                Show("COMPROBANTE / CAMBIO DE MONEDA\nEl registro muestra el cambio de dólares a pesos.\nEn Ataque, completa las tres pistas y pulsa REGISTRAR CAMBIO.", "Este comprobante documenta el cambio de moneda. Completa las tres pistas y pulsa Registrar cambio en la consola."); return;
+                Review("cambio", "Comprobante · OR-08",
+                    "Entrada: " + MoneyCounter.Short(data.funds) + " en dólares\nSalida: saldo equivalente en pesos del ejercicio\nOR-08 enlaza el registro con el libro. No se aplica una tasa real.",
+                    "comprobante", "El comprobante vincula el saldo en dólares con el equivalente en pesos. El origen sigue siendo O R cero ocho.");
+                return;
             case CasinoAction.SharedAlert:
-                RegisterEvidence("alerta");
-                Show("ALERTA / OR-08 VINCULADO AL CASO\nEste aviso compartido ya existe.\nEn Defensa, tras revisar el LIBRO, pulsa EMITIR REPORTE.", "La alerta compartida vincula el origen O R cero ocho con el incidente. Si estás en Defensa y ya revisaste el libro, cierra la tarjeta y pulsa Emitir reporte en la consola de análisis."); return;
+                Review("alerta", "Alerta compartida · Monitoreo del banco",
+                    "Origen señalado: OR-08\nEl equipo de monitoreo lo vinculó con los pagos investigados. La terminal comparte ese aviso con la casa de cambio.\nCruza el identificador con el libro.",
+                    "alerta", "La terminal recibió un aviso del equipo de monitoreo del banco. Señala el mismo origen que debes verificar en el libro.");
+                return;
             case CasinoAction.Convert:
                 if (aml.frozen) { Show("OPERACION BLOQUEADA\nLos fondos estan congelados. No pueden convertirse."); return; }
-                if (!evidence.Contains("libro") || !evidence.Contains("cambio")) { Show("Primero revisa el LIBRO y el COMPROBANTE."); return; }
+                if (mode != SimMode.Ataque || !EnabledAction(action) || converted) return;
                 converted = true; counter.stage = "Casa de cambio / pesos";
                 RegisterEvidence("cambio");
-                Show("CAMBIO REGISTRADO / DÓLARES A PESOS\nEl contador cambia de etapa.\nUsa el portal IR AL CASINO, a la derecha.", "El registro ahora marca pesos. Ve al portal Ir al casino para seguir el recorrido."); return;
+                narrator.StopWelcome();
+                Guide("cambio-registrado", "Registraste el cambio de dólares a pesos. La consola conserva el importe de referencia. Usa el portal a la derecha para seguir los fondos."); return;
             case CasinoAction.Report:
                 if (mode != SimMode.Defensa) { Show("ATAQUE / CONTROL AUSENTE EN LA RECREACION\nEn este recorrido el flujo sigue sin bloqueo.\nSelecciona DEFENSA para aplicar el reporte."); return; }
                 if (aml.frozen) { EndScenario(); return; }
@@ -230,11 +249,11 @@ public class GameManager : MonoBehaviour
                 ApplyDefense("ROS"); counter.frozen = data.funds; counter.stage = "Congelado antes del casino";
                 audioManager.Alert(); EndScenario(); return;
             case CasinoAction.ToCasino:
-                if (aml.frozen) { Show("PORTAL BLOQUEADO / US$58 M CONGELADOS\nEl ROS impide el ingreso de fondos al casino."); return; }
+                if (aml.frozen) { ui.Read("Portal bloqueado", $"Retenido: {MoneyCounter.Short(counter.frozen)} · Al casino: US$ 0\nLa barrera representa la intervención del ejercicio."); return; }
                 if (mode == SimMode.Defensa) { Show("MODO DEFENSA\nEmite el ROS en la casa de cambio antes del casino.\nPara ver el flujo sin controles, elige ATAQUE."); return; }
                 if (!converted || evidence.Count < 3) { Show("Antes de cruzar: registra las 3 evidencias\ny pulsa CONVERTIR."); return; }
                 inCasino = true; counter.stage = "Casino / fichas"; Teleport(casinoSpawn);
-                Show("CASINO / PESOS A FICHAS\nUsa ACERCARSE A LA MESA.\nEn la consola selecciona FICHAS A BANCA y FICHAS A JUGADOR.", "Ya estás en el casino. Usa el círculo para acercarte a la mesa. En la consola coloca un grupo de fichas en Banca y otro en Jugador."); return;
+                Guide("entrada-casino", "Ya estás en el casino. Las fichas representan fondos convertidos desde pesos. Mira el círculo de acercamiento o el de la consola para colocar los dos grupos."); return;
             case CasinoAction.ToExchange:
                 if(chipAnimator.running){Show("ESPERA\nTermina de colocar las fichas antes de salir.");return;}
                 inCasino=false; Teleport(exchangeSpawn); Show("Regresaste a la casa de cambio.\nEl recorrido conserva las evidencias registradas."); return;
@@ -243,49 +262,86 @@ public class GameManager : MonoBehaviour
             case CasinoAction.CashOut:
                 if (!betComplete || aml.frozen) { Show("Coloca ambos grupos de fichas y revela las cartas."); return; }
                 counter.cashOut = data.representedCash; counter.stage = "Fichas -> efectivo (tramo representado)";
-                Show("CANJE / EFECTIVO REPRESENTADO\nEl contador muestra un valor fijo de la demo.\nPulsa EXPLICAR EL CASO en la consola.",
-                    "El contador registra el valor fijo del tramo en efectivo. Pulsa Explicar el caso para identificar el problema de trazabilidad.");return;
+                Show($"Canje · Efectivo representado\n{MoneyCounter.Short(counter.cashOut)} del tramo en caja. El ejercicio fija este importe sin calcularlo a partir de la partida.",
+                    "La caja registra un importe didáctico fijo para el tramo en efectivo. El importe es independiente del resultado de las cartas. Selecciona Explicar el caso para revisar qué ocurrió con la trazabilidad.", "canje");return;
             case CasinoAction.ExplainCorrect:
                 if (counter.cashOut == 0) { Show("Completa primero la mesa y el canje de fichas."); return; }
                 explained = true;
-                Show("CORRECTO / LA CLAVE ES EL ORIGEN\nLa demostracion reparte fichas entre lados opuestos.\nNo garantiza ganancias ni vuelve licito el dinero.\nEl control debe relacionar operaciones y origen.\nAhora puedes CERRAR CASO."); return;
+                Guide("explicacion-correcta", "Así es. Los fondos cambiaron de forma y su origen es más difícil de seguir. Selecciona Cerrar caso."); return;
             case CasinoAction.ExplainWrong:
-                Show("REVISA TU EXPLICACION\nApostar a lados opuestos no garantiza ganar.\nObserva el recorrido: origen -> cambio -> fichas.\nEl problema que estudiamos es perder trazabilidad."); return;
+                Guide("explicacion-revisar", "Banca ganó y Jugador perdió en la mano preparada. Piensa en lo que cuesta identificar de dónde vino el dinero y elige otra vez."); return;
             case CasinoAction.Finish:
                 if (mode == SimMode.Ataque && counter.cashOut > 0 && !explained)
-                { explaining=true;ui.Refresh(this);return; }
+                { explaining=true;ui.Refresh(this);Guide("explicacion-pregunta", "¿Qué efecto ilustra el recorrido? Elige la respuesta en la consola.");return; }
                 EndScenario(); return;
             case CasinoAction.Credits:
                 Show("CREDITOS / ESCENARIO 08\nEscenario: guia Banco Andino del curso.\nModelos 3D, musica y sonidos originales de esta entrega.\nCardboard: Google, Apache 2.0. Unity/URP: sus licencias.\nImplementacion asistida por ChatGPT/Codex.\nEquipo: completar nombres, roles y fuentes en LEEME."); return;
         }
+    }
+    void OpenLedger()
+    {
+        bool pattern = StructuringDetector.Detect(data.operations, data.demonstrationThreshold, out long total, out int count);
+        var rows = new List<string>();
+        for (int i = 0; i < data.operations.Length; i += 2)
+        {
+            string row = $"OR-08   {i + 1:00}   {MoneyCounter.Short(data.operations[i])}";
+            if (i + 1 < data.operations.Length) row += $"     |     {i + 2:00}   {MoneyCounter.Short(data.operations[i + 1])}";
+            rows.Add(row);
+        }
+        rows.Add($"{count} movimientos del mismo origen = {MoneyCounter.Short(total)}");
+        rows.Add($"Umbral del ejercicio: {MoneyCounter.Short(data.demonstrationThreshold)} · {(pattern ? "alcanzado" : "sin coincidencia")}");
+        Review("libro", "Libro de operaciones · OR-08", string.Join("\n", rows),
+            "libro", "Estos movimientos comparten el origen O R cero ocho. El detector los suma y compara el total con el umbral del ejercicio.");
+    }
+
+    void Review(string key, string title, string body, string clip, string speech)
+    {
+        bool first = !HasEvidence(key);
+        RegisterEvidence(key);
+        ui.Read(title, body);
+        if (!first) return;
+        string next = Objective;
+        int modeSeparator = next.IndexOf(" · ");
+        if (modeSeparator >= 0) next = next.Substring(modeSeparator + 3);
+        Guide(clip + "-" + NextEvidenceClip(), speech + " " + next + ".");
+    }
+
+    string NextEvidenceClip()
+    {
+        if (!HasEvidence("libro")) return "paso-libro";
+        if (mode == SimMode.Defensa) return HasEvidence("alerta") ? "paso-reporte" : "paso-alerta";
+        if (!HasEvidence("cambio")) return "paso-comprobante";
+        return HasEvidence("alerta") ? "paso-cambio" : "paso-alerta";
     }
     public void SidePlaced(bool bank)
     {
         if(bank)bankPlaced=true;else playerPlaced=true;
         ui.Refresh(this);
         if (bankPlaced && playerPlaced)
-            Guide("Ya hay fichas en los dos lados. Selecciona Revelar cartas en la consola.");
+            Guide("fichas-listas", "Colocaste fichas en ambos lados. La simulación representa resultados opuestos en una misma mano. Selecciona Revelar cartas en la consola.");
         else
-            Guide(bank ? "Fichas en Banca. Ahora selecciona Fichas a Jugador." : "Fichas en Jugador. Ahora selecciona Fichas a Banca.");
+            Guide(bank ? "fichas-banca" : "fichas-jugador",
+                bank ? "El primer grupo está en Banca. Coloca el segundo grupo en Jugador." : "El primer grupo está en Jugador. Coloca el segundo grupo en Banca.");
     }
     public void RevealFinished()
     {
         dealt=true;betComplete=true;counter.stage="BANCA 7 / JUGADOR 6";ui.Refresh(this);
-        Show("RESULTADO PREPARADO\nBanca 7 / Jugador 6.\nLas fichas ilustran dos resultados opuestos.\nSiguiente: CANJEAR FICHAS.",
-            "La escena muestra un resultado preparado, Banca siete y Jugador seis. Selecciona Canjear fichas. El efectivo que verás es una cifra fijada para la demostración.");
+        Guide("cartas", "El resultado está preparado para el ejercicio. Banca suma siete y gana. Jugador suma seis y pierde. Selecciona Canjear fichas para ver el tramo representado.");
     }
     public void EndScenario()
     {
         if (mode == SimMode.Defensa && !aml.frozen) { Show("Falta emitir el ROS para terminar el modo defensa."); return; }
         if (mode == SimMode.Ataque && counter.cashOut == 0) { Show("Completa: evidencias -> convertir -> portal\n-> mesa -> canjear fichas -> cerrar caso."); return; }
         finished=true;
-        string outcome = mode == SimMode.Defensa
-            ? "DEFENSA / FLUJO DETENIDO\nUS$58 M congelados; US$0 al casino.\nDetector: 6 operaciones, total 58 M.\nValidación: alerta revisada y fondos fuera del casino.\nEl bloqueo es una accion simulada del escenario;\nun reporte por si solo no congela automaticamente."
-            : "ATAQUE / PERDIDA DE TRAZABILIDAD\nUS$58 M seguidos; aprox. US$30 M en efectivo\nen el tramo representado (no son ganancias).\nApuestas opuestas reducen exposicion, no el riesgo.\nCambiar fichas no vuelve licito el origen del dinero.";
-        string conclusion = outcome + "\nFalla: operaciones aisladas y controles ausentes.\nCompara el otro modo con el boton ATAQUE/DEFENSA.";
+        narrator.StopWelcome();
+        StructuringDetector.Detect(data.operations, data.demonstrationThreshold, out long reportTotal, out int reportCount);
+        string conclusion = mode == SimMode.Defensa
+            ? $"Intervención simulada\nPatrón OR-08: {reportCount} movimientos, {MoneyCounter.Short(reportTotal)}.\nAlerta compartida verificada. Fondos aún en la casa de cambio.\nRetención: {MoneyCounter.Short(counter.frozen)} · Al casino: US$ 0 · Portal bloqueado.\nEl ejercicio vincula el reporte y la retención."
+            : $"Trazabilidad del caso\nRuta analizada: {MoneyCounter.Short(data.funds)}.\nEfectivo representado: {MoneyCounter.Short(counter.cashOut)}, un importe fijo del ejercicio.\nRelacionar los registros permite seguir el origen.";
         Show(conclusion, mode == SimMode.Defensa
-            ? "El programa verificó el patrón del libro, la alerta compartida y que los fondos seguían en la casa de cambio. El reporte y la retención se simulan juntos. Se congelaron cincuenta y ocho millones del ejemplo. El portal quedó bloqueado y cero fondos llegaron al casino."
-            : "Terminó el recorrido del dinero. Prueba Defensa para comparar qué ocurre cuando el analista interviene antes del casino.");
+            ? "Verificamos tres cosas. Los movimientos del libro forman un patrón. La alerta coincide con el origen. Y los fondos siguen en la casa de cambio. El reporte activa la retención simulada del saldo completo. Mira el portal bloqueado."
+            : "Reconstruiste la ruta completa. Cambiar de forma dificulta seguir el origen del dinero. Selecciona Defensa para investigar cómo intervenir antes del casino.",
+            mode == SimMode.Defensa ? "cierre-defensa" : "cierre-ataque");
         ui.Result(conclusion);
         audioManager.Ending();
     }

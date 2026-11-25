@@ -15,6 +15,11 @@ public class CasinoPointer : MonoBehaviour
     bool consumed;
     bool editorDwell;
     CharacterController walker;
+    CasinoHandRig hands;
+    float confirmedUntil;
+    public CasinoAction? FocusedAction => focused == null ? null : focused.action;
+    public float DwellProgress => Mathf.Clamp01(elapsed / Mathf.Max(.1f, dwellSeconds));
+    public bool Confirming => Time.unscaledTime < confirmedUntil;
     void Awake()
     {
         // Keep the original XR pose driver on Android; mouse drives the editor only.
@@ -27,7 +32,22 @@ public class CasinoPointer : MonoBehaviour
             if (pose != null) pose.enabled = false;
         }
     }
-    public void ResetView() { yaw = 0; pitch = 0; if (Application.isEditor && view != null) view.transform.localRotation = Quaternion.identity; }
+    void Start()
+    {
+        if (reticleRenderer == null) return;
+        hands = gameObject.AddComponent<CasinoHandRig>();
+        hands.Initialize(view, reticleRenderer);
+    }
+    public void ResetView()
+    {
+        yaw = 0;
+        pitch = 0;
+        if (focused != null) focused.Focus(false);
+        focused = null;
+        elapsed = 0;
+        consumed = false;
+        if (Application.isEditor && view != null) view.transform.localRotation = Quaternion.identity;
+    }
     void Update()
     {
         bool click = false;
@@ -65,10 +85,17 @@ public class CasinoPointer : MonoBehaviour
                 }
                 if(keyboard.mKey.wasPressedThisFrame && GameManager.I!=null)GameManager.I.audioManager.ToggleMusic();
                 if (keyboard.gKey.wasPressedThisFrame) { editorDwell = !editorDwell; elapsed=0; consumed=false; }
-                if (keyboard.vKey.wasPressedThisFrame) GameManager.I.Act(CasinoAction.ReplayGuide);
-                if (keyboard.digit1Key.wasPressedThisFrame) GameManager.I.ResetScenario(SimMode.Ataque);
-                if (keyboard.digit2Key.wasPressedThisFrame) GameManager.I.ResetScenario(SimMode.Defensa);
-                if (keyboard.rKey.wasPressedThisFrame) GameManager.I.ResetScenario(GameManager.I.mode);
+                var game = GameManager.I;
+                if (game != null)
+                {
+                    if (keyboard.vKey.wasPressedThisFrame) game.Act(CasinoAction.ReplayGuide);
+                    if (keyboard.nKey.wasPressedThisFrame) game.Act(CasinoAction.MuteNarration);
+                    if (keyboard.minusKey.wasPressedThisFrame) game.Act(CasinoAction.VoiceDown);
+                    if (keyboard.equalsKey.wasPressedThisFrame) game.Act(CasinoAction.VoiceUp);
+                    if (keyboard.digit1Key.wasPressedThisFrame) game.ResetScenario(SimMode.Ataque);
+                    if (keyboard.digit2Key.wasPressedThisFrame) game.ResetScenario(SimMode.Defensa);
+                    if (keyboard.rKey.wasPressedThisFrame) game.ResetScenario(game.mode);
+                }
                 if (keyboard.spaceKey.wasPressedThisFrame) { click = true; ray = new Ray(view.transform.position, view.transform.forward); }
             }
         }
@@ -80,19 +107,14 @@ public class CasinoPointer : MonoBehaviour
         }
         if(Application.isEditor) ray=new Ray(view.transform.position,ray.direction);
         if (Application.isEditor && editorDwell) { dwell=true; ray=new Ray(view.transform.position,view.transform.forward); }
-        RaycastHit hit;
+        Select(ray, dwell, click);
+    }
+
+    internal void Select(Ray ray, bool dwell, bool click)
+    {
+        bool hitSurface = Physics.Raycast(ray, out var hit, 13f, ~0, QueryTriggerInteraction.Collide);
         CasinoInteractable candidate = null;
-        if(GameManager.I!=null && GameManager.I.ui.InfoOpen)
-        {
-            float best=13f;
-            foreach(var uiHit in Physics.RaycastAll(ray,13f,interactionMask,QueryTriggerInteraction.Collide))
-            {
-                var target=uiHit.collider.GetComponentInParent<CasinoInteractable>();
-                if(target!=null&&target.transform.IsChildOf(GameManager.I.ui.infoRoot)&&uiHit.distance<best)
-                {candidate=target;best=uiHit.distance;}
-            }
-        }
-        else if(Physics.Raycast(ray,out hit,13f,~0,QueryTriggerInteraction.Collide))
+        if(hitSurface)
             candidate=hit.collider.GetComponentInParent<CasinoInteractable>();
         if (candidate != focused)
         {
@@ -100,18 +122,18 @@ public class CasinoPointer : MonoBehaviour
             focused = candidate; elapsed = 0; consumed = false;
             if (focused != null) focused.Focus(true);
         }
-        if (reticle != null)
+        if (focused != null)
         {
-            reticle.position = ray.GetPoint(1.0f);
-            float scale = 0.009f + Mathf.Clamp01(elapsed / dwellSeconds) * 0.007f;
-            reticle.localScale = Vector3.one * scale;
+            if (!consumed && dwell) elapsed += Time.deltaTime;
+            if (click || (dwell && !consumed && DwellProgress >= 1f))
+            {
+                consumed = true;
+                elapsed = 0;
+                confirmedUntil = Time.unscaledTime + .32f;
+                focused.Activate();
+            }
         }
-        if (focused == null) { if (GameManager.I != null) GameManager.I.ui.Prompt("Mira un objeto o el portal"); return; }
-        if (!consumed && dwell) elapsed += Time.deltaTime;
-        GameManager.I.ui.Prompt(focused.prompt + (dwell && !consumed ? " / " + Mathf.CeilToInt(Mathf.Clamp01(elapsed / dwellSeconds) * 100) + "%" : ""));
-        if (click || (dwell && !consumed && elapsed >= dwellSeconds))
-        {
-            consumed = true; elapsed = 0; focused.Activate();
-        }
+        float distance = hitSurface ? Mathf.Clamp(hit.distance - .025f, .065f, 2.6f) : 1.8f;
+        if (hands != null) hands.Present(ray, distance, candidate != null, DwellProgress, Confirming);
     }
 }

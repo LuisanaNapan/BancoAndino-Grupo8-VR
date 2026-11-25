@@ -13,3 +13,11 @@ Música generada mediante síntesis y composición procedural original; código 
 Tipografías: DejaVu Serif Bold y DejaVu Sans. Bitstream, Inc. / DejaVu contributors. Licencia Bitstream Vera y cambios DejaVu de dominio público. Avisos completos en Assets/Casino/Fonts/LICENSE-DejaVu.txt. Rótulos originales dibujados para este proyecto con esas fuentes.
 
 V5: controles en DejaVu Sans Bold, bajo la misma licencia DejaVu incluida. Texturas de cartas y gráficos de interfaz originales de esta entrega. Interfaz nativa Unity UI.
+
+## Escenario 08 · Narración
+
+El antecedente histórico se basa en el [resumen público del Departamento de Justicia de Estados Unidos](https://www.justice.gov/usao-cdca/pr/north-korean-regime-backed-programmer-charged-conspiracy-conduct-multiple-cyberattacks). Banco Andino, OR-08 y las condiciones del detector son datos del ejercicio.
+
+Unity reproduce los clips de `Assets/Casino/Resources/CasinoNarracion/` en un único `AudioSource`. Las intervenciones sin clip se presentan con subtítulos. El texto de cada archivo y la dirección de locución están en el [guion de grabación](GUION_NARRACION_CASINO08.md).
+
+Para incorporar una grabación humana se requieren los archivos y permiso para distribuirlos con el proyecto y el APK. Para producir audio con Azure Speech se necesita una suscripción y un recurso Speech de pago para aplicar los derechos de uso de las voces neurales predefinidas. `es-PE-CamilaNeural` es una opción en español peruano. Azure cobra la síntesis por carácter según región y oferta. Los clips incorporados se reproducen sin acceso a Azure desde Android. [Voces](https://learn.microsoft.com/azure/ai-services/speech-service/language-support?tabs=tts) · [Precios](https://azure.microsoft.com/en-us/pricing/details/speech/) · [Términos de uso](https://www.microsoft.com/licensing/terms/product/MicrosoftAzure/all).
