@@ -8,6 +8,7 @@ internal sealed class CasinoDeviceSpeech : IDisposable
     bool warned;
     public bool Speaking { get; private set; }
     public bool Pending { get; private set; }
+    public bool Failed { get; private set; }
 
 #if UNITY_ANDROID && !UNITY_EDITOR
     sealed class InitListener : AndroidJavaProxy
@@ -46,6 +47,7 @@ internal sealed class CasinoDeviceSpeech : IDisposable
     public bool Start(string text, float volume)
     {
         Stop();
+        Failed = false;
         deadline = Time.unscaledTime + Mathf.Clamp(text.Length / 11f + 4f, 7f, 30f);
 #if UNITY_ANDROID && !UNITY_EDITOR
         if (ready) return StartAndroid(text, volume);
@@ -88,17 +90,20 @@ internal sealed class CasinoDeviceSpeech : IDisposable
         {
             string text = waitingText;
             waitingText = null;
-            if (ready) StartAndroid(text, waitingVolume);
+            if (!ready || !StartAndroid(text, waitingVolume)) Failed = true;
         }
         try
         {
             Speaking = ready && deadline > 0f && android.Call<bool>("isSpeaking");
+            if (Speaking) startGrace = 0f;
+            else if (waitingText == null && startGrace > 0f && Time.unscaledTime >= startGrace) Failed = true;
             Pending = waitingText != null || (ready && !Speaking && Time.unscaledTime < startGrace);
         }
         catch (Exception exception)
         {
             Warn(exception.Message);
             ready = false;
+            Failed = true;
             Stop();
         }
 #elif UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
@@ -106,7 +111,11 @@ internal sealed class CasinoDeviceSpeech : IDisposable
         {
             if (windows.HasExited)
             {
-                if (windows.ExitCode != 0) Warn("Comprueba que Windows tenga una voz de español instalada.");
+                if (windows.ExitCode != 0)
+                {
+                    Failed = true;
+                    Warn("Comprueba que Windows tenga una voz de español instalada.");
+                }
                 windows.Dispose();
                 windows = null;
             }
@@ -114,7 +123,11 @@ internal sealed class CasinoDeviceSpeech : IDisposable
         }
         Pending = false;
 #endif
-        if (deadline > 0f && Time.unscaledTime >= deadline) Stop();
+        if (deadline > 0f && Time.unscaledTime >= deadline)
+        {
+            Failed |= Speaking || Pending;
+            Stop();
+        }
     }
 
 #if UNITY_ANDROID && !UNITY_EDITOR

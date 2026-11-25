@@ -78,7 +78,7 @@ public sealed class CasinoFieldDisplay : MonoBehaviour
         veil.gameObject.SetActive(value > 0f);
     }
 
-    public void SetCaption(string text, float duration, bool singleLine)
+    public void SetCaption(string text, float duration, bool singleLine, bool visible)
     {
         captionPages.Clear();
         string page = "";
@@ -101,7 +101,7 @@ public sealed class CasinoFieldDisplay : MonoBehaviour
         captionStart = Time.unscaledTime;
         captionDuration = Mathf.Max(duration, captionPages.Count * 2.8f);
         activePage = -1;
-        caption.transform.parent.gameObject.SetActive(captionPages.Count > 0);
+        caption.transform.parent.gameObject.SetActive(visible && captionPages.Count > 0);
         caption.text = "";
         UpdateCaption();
     }

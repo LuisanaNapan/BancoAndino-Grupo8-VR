@@ -30,7 +30,8 @@ public class UIManager : MonoBehaviour
     {
         if (modePicker != null) modePicker.SetActive(visible);
     }
-    public void Caption(string text, float duration, bool singleLine = false) => field.SetCaption(text, duration, singleLine);
+    public void Caption(string text, float duration, bool singleLine = false, bool visible = true)
+        => field.SetCaption(text, duration, singleLine, visible);
     void Update()
     {
         var g=GameManager.I;if(g==null)return;

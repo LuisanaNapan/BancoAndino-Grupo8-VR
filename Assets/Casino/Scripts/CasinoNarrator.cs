@@ -81,7 +81,6 @@ public sealed class CasinoNarrator : MonoBehaviour
         bool play = clip != null && enabled;
         float readingTime = Mathf.Max(2.6f, text.Length / 16f);
         float duration = play ? clip.length : readingTime;
-        ui.Caption(text, singleCaption ? float.PositiveInfinity : duration, singleCaption);
         if (play)
         {
             voice.clip = clip;
@@ -90,6 +89,8 @@ public sealed class CasinoNarrator : MonoBehaviour
         }
         else if (clip == null && enabled && deviceSpeech.Start(text, volume * AudioListener.volume))
             PlaybackBackend = "Voz del dispositivo";
+        ui.Caption(text, singleCaption ? float.PositiveInfinity : duration, singleCaption,
+            PlaybackBackend == "Subtítulos");
         return duration;
     }
 
@@ -102,27 +103,37 @@ public sealed class CasinoNarrator : MonoBehaviour
 
     public void AdjustVolume(float delta)
     {
+        bool wasPlaying = IsSpeaking || deviceSpeech.Pending;
         volume = Mathf.Clamp01(volume + delta);
         voice.volume = volume;
         PlayerPrefs.SetFloat("Casino.VoiceVolume", volume);
-        if (volume == 0f) StopAudio();
-        else if (deviceSpeech.Speaking || deviceSpeech.Pending) Replay();
+        if (wasPlaying && (volume == 0f || deviceSpeech.Speaking || deviceSpeech.Pending)) Replay();
     }
 
     public void ToggleMute()
     {
+        bool wasPlaying = IsSpeaking || deviceSpeech.Pending;
         muted = !muted;
         PlayerPrefs.SetInt("Casino.VoiceMuted", muted ? 1 : 0);
-        if (muted) StopAudio();
-        else Replay();
+        if (!muted || wasPlaying) Replay();
     }
 
     void Update()
     {
         if (mix == null) return;
         deviceSpeech.Tick();
+        if (PlaybackBackend == "Voz del dispositivo" && deviceSpeech.Failed) ShowFailedSpeech();
         mix.DuckMusic(IsSpeaking);
         if (Introducing) AdvanceIntroduction();
+    }
+
+    void ShowFailedSpeech()
+    {
+        string text = Introducing ? introduction[introIndex].text : lastText;
+        StopAudio();
+        float readingTime = Mathf.Max(2.6f, text.Length / 16f);
+        ui.Caption(text, Introducing ? float.PositiveInfinity : readingTime, Introducing);
+        if (Introducing) introMinimumEnd = Time.unscaledTime + readingTime;
     }
 
     void AdvanceIntroduction()
