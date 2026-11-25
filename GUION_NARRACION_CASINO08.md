@@ -44,6 +44,32 @@ Vamos paso a paso. Yo te acompañaré.
 
 La recreación comienza después del envío de órdenes fraudulentas. En el banco, la doble autorización y el monitoreo de pagos son controles propuestos. Retoma el objetivo que ves arriba.
 
+## Práctica de selección y desplazamiento
+
+### `tutorial-libro-cardboard.wav`
+
+Estos movimientos comparten el origen O R cero ocho. El detector los suma y compara el total con el umbral del ejercicio. Cuando termines, aparta la mirada y vuelve al LIBRO para cerrar.
+
+### `tutorial-libro-editor.wav`
+
+Estos movimientos comparten el origen O R cero ocho. El detector los suma y compara el total con el umbral del ejercicio. Cuando termines, vuelve a hacer clic en el LIBRO para cerrar.
+
+### `tutorial-mover-cardboard.wav`
+
+Busca el círculo ACERCARSE en el suelo. Mantén la mirada sobre él hasta llenar el círculo del puntero. Te llevará junto al mostrador.
+
+### `tutorial-mover-editor.wav`
+
+Haz clic en el círculo ACERCARSE del suelo. Te llevará junto al mostrador.
+
+### `tutorial-llegada-ataque.wav`
+
+Ya estás junto al mostrador. Selecciona COMPROBANTE para averiguar qué pasó con el dinero.
+
+### `tutorial-llegada-defensa.wav`
+
+Ya estás junto al mostrador. Selecciona ALERTA para averiguar qué aviso recibió el banco.
+
 ## Libro
 
 ### `libro-paso-comprobante.wav`
@@ -106,7 +132,11 @@ Registraste el cambio de dólares a pesos. La consola conserva el importe de ref
 
 ### `entrada-casino.wav`
 
-Ya estás en el casino. Las fichas representan fondos convertidos desde pesos. Mira el círculo de acercamiento o el de la consola para colocar los dos grupos.
+Ya estás en el casino. Las fichas representan los fondos convertidos desde pesos. Selecciona el círculo ACERCARSE frente a la mesa.
+
+### `mesa-acercamiento.wav`
+
+Ya estás junto a la mesa. Selecciona FICHAS A BANCA o FICHAS A JUGADOR en la consola lateral.
 
 ### `fichas-banca.wav`
 

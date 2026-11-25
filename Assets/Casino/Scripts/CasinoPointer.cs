@@ -9,17 +9,23 @@ public class CasinoPointer : MonoBehaviour
     public Transform reticle;
     public Renderer reticleRenderer;
     public LayerMask interactionMask;
-    public float dwellSeconds = 1.8f;
-    CasinoInteractable focused;
+    [Range(.8f, 4f)] public float dwellSeconds = 1.8f;
+    [Min(1f)] public float maxDistance = 13f;
+    readonly RaycastHit[] hits = new RaycastHit[32];
+    CasinoInteractable focused, activated;
     float elapsed, yaw, pitch;
-    bool consumed;
     bool editorDwell;
     CharacterController walker;
     CasinoHandRig hands;
     float confirmedUntil;
     public CasinoAction? FocusedAction => focused == null ? null : focused.action;
+    internal CasinoInteractable FocusedTarget => focused;
     public float DwellProgress => Mathf.Clamp01(elapsed / Mathf.Max(.1f, dwellSeconds));
     public bool Confirming => Time.unscaledTime < confirmedUntil;
+    public Vector3 AimPoint { get; private set; }
+    internal int ActivationCount { get; private set; }
+    public bool UsesGaze => !Application.isEditor || editorDwell;
+    internal void SetEditorGaze(bool value) { editorDwell = value; elapsed = 0; }
     void Awake()
     {
         // Keep the original XR pose driver on Android; mouse drives the editor only.
@@ -45,14 +51,15 @@ public class CasinoPointer : MonoBehaviour
         if (focused != null) focused.Focus(false);
         focused = null;
         elapsed = 0;
-        consumed = false;
         if (Application.isEditor && view != null) view.transform.localRotation = Quaternion.identity;
     }
     void Update()
     {
         bool click = false;
         Ray ray = new Ray(view.transform.position, view.transform.forward);
-        bool dwell = !Application.isEditor;
+        bool dwell = UsesGaze;
+        var game = GameManager.I;
+        if (game != null && game.Teleporting) return;
         if (Application.isEditor)
         {
             Mouse mouse = Mouse.current;
@@ -84,17 +91,16 @@ public class CasinoPointer : MonoBehaviour
                     else transform.position+=step;
                 }
                 if(keyboard.mKey.wasPressedThisFrame && GameManager.I!=null)GameManager.I.audioManager.ToggleMusic();
-                if (keyboard.gKey.wasPressedThisFrame) { editorDwell = !editorDwell; elapsed=0; consumed=false; }
-                var game = GameManager.I;
+                if (keyboard.gKey.wasPressedThisFrame) { SetEditorGaze(!editorDwell); dwell = UsesGaze; }
                 if (game != null)
                 {
                     if (keyboard.vKey.wasPressedThisFrame) game.Act(CasinoAction.ReplayGuide);
                     if (keyboard.nKey.wasPressedThisFrame) game.Act(CasinoAction.MuteNarration);
                     if (keyboard.minusKey.wasPressedThisFrame) game.Act(CasinoAction.VoiceDown);
                     if (keyboard.equalsKey.wasPressedThisFrame) game.Act(CasinoAction.VoiceUp);
-                    if (keyboard.digit1Key.wasPressedThisFrame) game.ResetScenario(SimMode.Ataque);
-                    if (keyboard.digit2Key.wasPressedThisFrame) game.ResetScenario(SimMode.Defensa);
-                    if (keyboard.rKey.wasPressedThisFrame) game.ResetScenario(game.mode);
+                    if (keyboard.digit1Key.wasPressedThisFrame) game.Act(CasinoAction.Attack);
+                    if (keyboard.digit2Key.wasPressedThisFrame) game.Act(CasinoAction.Defense);
+                    if (keyboard.rKey.wasPressedThisFrame) game.Act(CasinoAction.Restart);
                 }
                 if (keyboard.spaceKey.wasPressedThisFrame) { click = true; ray = new Ray(view.transform.position, view.transform.forward); }
             }
@@ -106,34 +112,52 @@ public class CasinoPointer : MonoBehaviour
             else if (Touchscreen.current != null) click = Touchscreen.current.primaryTouch.press.wasPressedThisFrame;
         }
         if(Application.isEditor) ray=new Ray(view.transform.position,ray.direction);
-        if (Application.isEditor && editorDwell) { dwell=true; ray=new Ray(view.transform.position,view.transform.forward); }
+        if (Application.isEditor && editorDwell) ray = new Ray(view.transform.position, view.transform.forward);
         Select(ray, dwell, click);
     }
 
     internal void Select(Ray ray, bool dwell, bool click)
     {
-        bool hitSurface = Physics.Raycast(ray, out var hit, 13f, ~0, QueryTriggerInteraction.Collide);
+        var game = GameManager.I;
+        if (game != null && game.Teleporting) return;
+        float distance = 1.8f;
+        float nearest = float.PositiveInfinity;
         CasinoInteractable candidate = null;
-        if(hitSurface)
-            candidate=hit.collider.GetComponentInParent<CasinoInteractable>();
+        int count = Physics.RaycastNonAlloc(ray, hits, maxDistance, ~0, QueryTriggerInteraction.Collide);
+        for (int i = 0; i < count; i++)
+        {
+            var hit = hits[i];
+            if (hit.distance >= nearest) continue;
+            bool selectableLayer = (interactionMask.value & (1 << hit.collider.gameObject.layer)) != 0;
+            var target = selectableLayer ? hit.collider.GetComponentInParent<CasinoInteractable>() : null;
+            if (hit.collider.isTrigger && target == null) continue;
+            nearest = hit.distance;
+            bool ledgerWaiting = target != null && target.action == CasinoAction.Ledger && game != null && !game.ReadyForBook;
+            candidate = target != null && target.isActiveAndEnabled && !ledgerWaiting ? target : null;
+        }
+        if (!float.IsPositiveInfinity(nearest)) distance = Mathf.Max(.055f, nearest - .015f);
+        AimPoint = ray.GetPoint(distance);
+        if (candidate != activated) activated = null;
         if (candidate != focused)
         {
             if (focused != null) focused.Focus(false);
-            focused = candidate; elapsed = 0; consumed = false;
+            focused = candidate;
+            elapsed = 0f;
             if (focused != null) focused.Focus(true);
         }
-        if (focused != null)
+        bool desktopClick = Application.isEditor && !dwell && click;
+        if (focused != null && (focused != activated || desktopClick))
         {
-            if (!consumed && dwell) elapsed += Time.deltaTime;
-            if (click || (dwell && !consumed && DwellProgress >= 1f))
+            if (dwell) elapsed += Mathf.Min(Time.unscaledDeltaTime, .12f);
+            if (click || (dwell && DwellProgress >= 1f))
             {
-                consumed = true;
-                elapsed = 0;
+                activated = focused;
+                elapsed = 0f;
                 confirmedUntil = Time.unscaledTime + .32f;
-                focused.Activate();
+                ActivationCount++;
+                activated.Activate();
             }
         }
-        float distance = hitSurface ? Mathf.Clamp(hit.distance - .025f, .065f, 2.6f) : 1.8f;
         if (hands != null) hands.Present(ray, distance, candidate != null, DwellProgress, Confirming);
     }
 }

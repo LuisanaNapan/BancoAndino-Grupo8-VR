@@ -13,6 +13,7 @@ public class UIManager : MonoBehaviour
     public Font font,displayFont;
     readonly List<string> pages=new List<string>();int page;
     CasinoFieldDisplay field;
+    [System.NonSerialized] public GameObject modePicker;
     public string Reading => field == null ? "" : field.Reading;
     public string Subtitle => field == null ? "" : field.Subtitle;
     public bool InfoOpen {get{return infoRoot!=null&&infoRoot.gameObject.activeSelf;}}
@@ -22,7 +23,13 @@ public class UIManager : MonoBehaviour
         field.Initialize(this, game);
         CloseInfo();
     }
-    public void Read(string title, string text) => field.SetReading(title, text);
+    public void Read(string title, string text, string hint = "") => field.SetReading(title, text, hint);
+    public void Notice(string text) => field.SetNotice(text);
+    public void Fade(float opacity) => field.SetFade(opacity);
+    public void ShowModePicker(bool visible)
+    {
+        if (modePicker != null) modePicker.SetActive(visible);
+    }
     public void Caption(string text, float duration, bool singleLine = false) => field.SetCaption(text, duration, singleLine);
     void Update()
     {
@@ -100,6 +107,7 @@ public class UIManager : MonoBehaviour
             ? (g.HasEvidence("libro") ? 1 : 0) + (g.HasEvidence("alerta") ? 1 : 0)
             : g.EvidenceCount;
         foreach (var t in modeTexts)
-            if (t != null) t.text = g.mode.ToString().ToUpperInvariant() + " / Pistas " + reviewed + " de " + (defense ? 2 : 3);
+            if (t != null) t.text = g.Tutorial == CasinoTutorialStep.ChooseMode ? "ELIGE RECORRIDO"
+                : g.mode.ToString().ToUpperInvariant() + " / Pistas " + reviewed + " de " + (defense ? 2 : 3);
     }
 }

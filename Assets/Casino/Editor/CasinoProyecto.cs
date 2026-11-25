@@ -35,7 +35,7 @@ public class CasinoProyecto : EditorWindow
             EditorApplication.delayCall += () => Run(CreateScenario);
         if (GUILayout.Button("2. ABRIR ESCENA CASINO", GUILayout.Height(34)))
             EditorApplication.delayCall += () => Run(() => { if (!File.Exists(ScenePath)) throw new InvalidOperationException("Primero crea el escenario."); if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) EditorSceneManager.OpenScene(ScenePath); });
-        EditorGUILayout.HelpBox("PRUEBA PC: Play > Game. Clic izquierdo en objetos. Manten clic derecho y mueve el mouse para mirar. WASD: desplazarte. 1/2: modos. R: reiniciar. G: mirada. M: musica. Sin celular puedes probar los dos recorridos completos.", MessageType.None);
+        EditorGUILayout.HelpBox("EDITOR: Play > Game. Clic izquierdo selecciona; mantén clic derecho y mueve el mouse para mirar. WASD o flechas desplazan. G activa la mirada; espacio selecciona al centro. 1/2 eligen modo, R reinicia, V repite guía, N cambia el silencio, -/= ajustan la voz y M cambia la música. CARDBOARD: gira la cabeza para apuntar y mantén la mirada hasta llenar el círculo.", MessageType.None);
         if (GUILayout.Button("3. REVISAR PROYECTO", GUILayout.Height(32))) message = Validar();
         if(GUILayout.Button("PRUEBA DE RECORRIDOS (en Play)",GUILayout.Height(30))) CasinoRuntimeCheck.Begin();
         if (GUILayout.Button("PRUEBA DE RECORRIDOS Y CAPTURAS (en Play)", GUILayout.Height(30)))
@@ -429,10 +429,9 @@ public class CasinoProyecto : EditorWindow
             console.rotation=Quaternion.Euler(0,-40,0);Background(console,new Color(.018f,.05f,.065f));
             var col=console.gameObject.AddComponent<BoxCollider>();col.size=new Vector3(1030,1310,14); // physical kiosk, behind its controls
             Label(console,casino?"MESA DE BACARÁ":"CONTROL DE FONDOS",new Vector2(0,550),new Vector2(880,90),56,displayFont,new Color(.94f,.76f,.40f));
-            modes.Add(Label(console,"PULSA PLAY",new Vector2(0,452),new Vector2(900,62),34,controlsFont,new Color(.35f,.86f,.81f)));
+            modes.Add(Label(console,"ELIGE RECORRIDO",new Vector2(0,452),new Vector2(900,62),34,controlsFont,new Color(.35f,.86f,.81f)));
             objectives.Add(Label(console,"Sigue el recorrido",new Vector2(0,300),new Vector2(860,175),46,font,Color.white));
             counts.Add(Label(console,"",new Vector2(0,70),new Vector2(860,200),35,font,new Color(.80f,.85f,.84f)));
-            Label(console,"Mira un control y manten la reticula",new Vector2(0,-550),new Vector2(860,100),29,font,new Color(.63f,.72f,.73f));
             if(casino)
             {
                 Control(console,"Colocar_Banca","FICHAS A BANCA",CasinoAction.PlaceBank,new Vector2(0,-190));

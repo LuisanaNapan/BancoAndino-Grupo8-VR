@@ -6,6 +6,7 @@ public sealed class CasinoNarrator : MonoBehaviour
     UIManager ui;
     AudioManager mix;
     AudioSource voice;
+    CasinoDeviceSpeech deviceSpeech;
     string lastId, lastText;
     (string id, string text)[] introduction;
     int introIndex;
@@ -13,11 +14,14 @@ public sealed class CasinoNarrator : MonoBehaviour
     (string id, string text) deferred;
     float volume;
     bool muted;
+    bool resumeCue;
 
     public float Volume => volume;
     public bool Muted => muted;
-    public bool IsSpeaking => voice != null && voice.isPlaying;
+    public bool IsSpeaking => (voice != null && voice.isPlaying) || (deviceSpeech != null && deviceSpeech.Speaking);
+    public string PlaybackBackend { get; private set; }
     public bool Introducing => introduction != null && introIndex < introduction.Length;
+    public bool FirstInstructionReady => !Introducing || introIndex >= introduction.Length - 2;
 
     public void Initialize(UIManager display, AudioManager audioManager)
     {
@@ -26,6 +30,7 @@ public sealed class CasinoNarrator : MonoBehaviour
         voice = gameObject.AddComponent<AudioSource>();
         voice.playOnAwake = false;
         voice.spatialBlend = 0;
+        deviceSpeech = new CasinoDeviceSpeech();
         volume = Mathf.Clamp01(PlayerPrefs.GetFloat("Casino.VoiceVolume", .75f));
         muted = PlayerPrefs.GetInt("Casino.VoiceMuted") != 0;
         voice.volume = volume;
@@ -72,7 +77,8 @@ public sealed class CasinoNarrator : MonoBehaviour
     {
         StopAudio();
         var clip = string.IsNullOrEmpty(id) ? null : Resources.Load<AudioClip>(ClipFolder + id);
-        bool play = clip != null && !muted && volume > 0f;
+        bool enabled = !muted && volume > 0f && !AudioListener.pause && AudioListener.volume > 0f;
+        bool play = clip != null && enabled;
         float readingTime = Mathf.Max(2.6f, text.Length / 16f);
         float duration = play ? clip.length : readingTime;
         ui.Caption(text, singleCaption ? float.PositiveInfinity : duration, singleCaption);
@@ -80,7 +86,10 @@ public sealed class CasinoNarrator : MonoBehaviour
         {
             voice.clip = clip;
             voice.Play();
+            PlaybackBackend = "AudioClip";
         }
+        else if (clip == null && enabled && deviceSpeech.Start(text, volume * AudioListener.volume))
+            PlaybackBackend = "Voz del dispositivo";
         return duration;
     }
 
@@ -97,6 +106,7 @@ public sealed class CasinoNarrator : MonoBehaviour
         voice.volume = volume;
         PlayerPrefs.SetFloat("Casino.VoiceVolume", volume);
         if (volume == 0f) StopAudio();
+        else if (deviceSpeech.Speaking || deviceSpeech.Pending) Replay();
     }
 
     public void ToggleMute()
@@ -110,6 +120,7 @@ public sealed class CasinoNarrator : MonoBehaviour
     void Update()
     {
         if (mix == null) return;
+        deviceSpeech.Tick();
         mix.DuckMusic(IsSpeaking);
         if (Introducing) AdvanceIntroduction();
     }
@@ -117,7 +128,7 @@ public sealed class CasinoNarrator : MonoBehaviour
     void AdvanceIntroduction()
     {
         float now = Time.unscaledTime;
-        if (IsSpeaking || now < introMinimumEnd) return;
+        if (IsSpeaking || deviceSpeech.Pending || now < introMinimumEnd) return;
         if (introNextAt == 0f)
         {
             ui.Caption("", 0f);
@@ -139,13 +150,28 @@ public sealed class CasinoNarrator : MonoBehaviour
     void StopAudio()
     {
         if (voice != null) voice.Stop();
+        deviceSpeech?.Stop();
+        PlaybackBackend = "Subtítulos";
         if (mix != null) mix.DuckMusic(false);
     }
 
     void OnApplicationPause(bool paused)
     {
-        if (paused) StopAudio();
+        if (paused)
+        {
+            resumeCue = IsSpeaking || (deviceSpeech != null && deviceSpeech.Pending);
+            StopAudio();
+        }
+        else if (resumeCue)
+        {
+            resumeCue = false;
+            Replay();
+        }
     }
 
-    void OnDestroy() { StopAudio(); }
+    void OnDestroy()
+    {
+        StopAudio();
+        deviceSpeech?.Dispose();
+    }
 }

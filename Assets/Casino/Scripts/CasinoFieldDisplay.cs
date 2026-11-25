@@ -10,12 +10,14 @@ public sealed class CasinoFieldDisplay : MonoBehaviour
     static readonly Color Signal = new Color32(109, 224, 228, 255);
     GameManager game;
     Camera view;
-    Text objective, readingTitle, reading, caption;
+    Text objective, readingTitle, reading, readingHint, caption, notice;
     RectTransform canvas, document;
     Material fieldMaterial;
     GameObject readingPanel;
+    Image veil;
     readonly List<string> captionPages = new List<string>();
     float captionStart, captionDuration;
+    float noticeUntil;
     int activePage;
 
     public string Reading => reading.text;
@@ -38,22 +40,42 @@ public sealed class CasinoFieldDisplay : MonoBehaviour
         objective = Label(taskPanel, ui.displayFont, Vector2.zero, new Vector2(720, 54), 25, Signal);
         var textPanel = Panel(canvas, "Subtítulos", new Vector2(0, -235), new Vector2(870, 100));
         caption = Label(textPanel, ui.font, Vector2.zero, new Vector2(824, 88), 27, Paper);
+        var noticePanel = Panel(canvas, "Aviso", new Vector2(0, -355), new Vector2(800, 56));
+        notice = Label(noticePanel, ui.font, Vector2.zero, new Vector2(750, 49), 24, new Color32(255, 211, 125, 255));
+        noticePanel.gameObject.SetActive(false);
         var doc = Panel(canvas, "Evidencia", new Vector2(445, -52), new Vector2(680, 250));
         document = doc;
         readingTitle = Label(doc, ui.displayFont, new Vector2(0, 96), new Vector2(610, 42), 24, Signal);
-        reading = Label(doc, ui.font, new Vector2(0, -16), new Vector2(605, 178), 24, Paper);
+        reading = Label(doc, ui.font, new Vector2(0, -4), new Vector2(605, 151), 24, Paper);
+        readingHint = Label(doc, ui.font, new Vector2(0, -105), new Vector2(628, 46), 19, Signal);
         reading.alignment = TextAnchor.MiddleLeft;
         readingPanel = doc.gameObject;
         readingPanel.SetActive(false);
         textPanel.gameObject.SetActive(false);
+        veil = Panel(canvas, "Fundido de teletransporte", Vector2.zero, new Vector2(6200, 3400)).GetComponent<Image>();
+        SetFade(0f);
         FitDocument();
     }
 
-    public void SetReading(string title, string body)
+    public void SetReading(string title, string body, string hint)
     {
         readingTitle.text = title;
         reading.text = body;
+        readingHint.text = hint;
         readingPanel.SetActive(!string.IsNullOrEmpty(title));
+    }
+
+    public void SetNotice(string text)
+    {
+        notice.text = text;
+        noticeUntil = Time.unscaledTime + 3.4f;
+        notice.transform.parent.gameObject.SetActive(text.Length > 0);
+    }
+
+    public void SetFade(float value)
+    {
+        veil.color = new Color(0, 0, 0, value);
+        veil.gameObject.SetActive(value > 0f);
     }
 
     public void SetCaption(string text, float duration, bool singleLine)
@@ -89,6 +111,8 @@ public sealed class CasinoFieldDisplay : MonoBehaviour
         string current = game.Objective;
         if (objective.text != current) objective.text = current;
         UpdateCaption();
+        if (notice.transform.parent.gameObject.activeSelf && Time.unscaledTime >= noticeUntil)
+            notice.transform.parent.gameObject.SetActive(false);
     }
 
     void LateUpdate() { if (readingPanel.activeSelf) FitDocument(); }

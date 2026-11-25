@@ -18,6 +18,7 @@ public static class CasinoOperationsRoom
 
     static void DressRooms(Transform roomArt, GameManager game)
     {
+        Transform firstMenu = null;
         foreach (Transform item in roomArt)
         {
             bool casino = item.position.x > game.exchangeSpawn.position.x + 10f;
@@ -36,6 +37,7 @@ public static class CasinoOperationsRoom
                     break;
                 case "Menu_recorrido":
                     InstallAudioMenu(item, accent);
+                    if (!casino) firstMenu = item;
                     break;
                 case "Pista_alerta":
                     InstallTerminal(item, game.ui, accent);
@@ -45,6 +47,37 @@ public static class CasinoOperationsRoom
                     break;
             }
         }
+        if (firstMenu != null) InstallModePicker(firstMenu, roomArt, game);
+    }
+
+    static void InstallModePicker(Transform menu, Transform roomArt, GameManager game)
+    {
+        var chooser = new GameObject("Elección de recorrido", typeof(RectTransform)).GetComponent<RectTransform>();
+        chooser.SetParent(roomArt, false);
+        chooser.position = game.exchangeSpawn.position + new Vector3(0, .06f, 2.05f);
+        chooser.localScale = Vector3.one * .0017f;
+        chooser.sizeDelta = new Vector2(990, 275);
+        var canvas = chooser.gameObject.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.WorldSpace;
+        canvas.sortingOrder = 3;
+        var panel = chooser.gameObject.AddComponent<Image>();
+        panel.color = new Color32(8, 33, 44, 255);
+        panel.raycastTarget = false;
+        TerminalLabel(chooser, game.ui.displayFont, "ELIGE RECORRIDO", 78, 49, new Color32(109, 224, 228, 255));
+        foreach (var control in menu.GetComponents<CasinoActionGate>())
+        {
+            CasinoAction action = control.target.action;
+            if (action != CasinoAction.Attack && action != CasinoAction.Defense) continue;
+            var copy = Object.Instantiate(control.visuals, chooser);
+            var rect = (RectTransform)copy.transform;
+            rect.anchoredPosition = new Vector2(action == CasinoAction.Attack ? -239f : 239f, -51f);
+            rect.localPosition = new Vector3(rect.localPosition.x, rect.localPosition.y, -22);
+            rect.localScale = new Vector3(.50f, .85f, 1f);
+            var text = copy.GetComponentInChildren<Text>().rectTransform;
+            text.localScale = new Vector3(1.6f, 1f, 1f);
+            text.sizeDelta = new Vector2(460f, 110f);
+        }
+        game.ui.modePicker = chooser.gameObject;
     }
 
     static void InstallTerminal(Transform target, UIManager ui, Color accent)

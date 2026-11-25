@@ -1,5 +1,9 @@
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+
+public enum CasinoTutorialStep { ChooseMode, SelectBook, CloseBook, Move, Complete }
 
 public class GameManager : MonoBehaviour
 {
@@ -17,6 +21,14 @@ public class GameManager : MonoBehaviour
     readonly HashSet<string> defenses = new HashSet<string>();
     bool converted, inCasino, betComplete, explained;
     bool explaining, finished, bankPlaced, playerPlaced, dealt, revealRequested;
+    bool casinoApproached;
+    CasinoAction? openEvidence;
+    CasinoPointer pointer;
+    public CasinoTutorialStep Tutorial { get; private set; } = CasinoTutorialStep.ChooseMode;
+    public bool Teleporting { get; private set; }
+    public bool UsesGaze => pointer == null || pointer.UsesGaze;
+    public bool ReadyForBook => Tutorial != CasinoTutorialStep.ChooseMode
+        && (Tutorial != CasinoTutorialStep.SelectBook || (narrator != null && narrator.FirstInstructionReady));
     public bool RevealRequested { get { return revealRequested; } }
     public bool BankPlaced { get { return bankPlaced; } }
     public bool PlayerPlaced { get { return playerPlaced; } }
@@ -38,8 +50,9 @@ public class GameManager : MonoBehaviour
     }
     public bool EnabledAction(CasinoAction a)
     {
-        if(a==CasinoAction.PlaceBank)return !chipAnimator.running&&!bankPlaced;
-        if(a==CasinoAction.PlacePlayer)return !chipAnimator.running&&!playerPlaced;
+        if (!PermittedInTutorial(a)) return false;
+        if(a==CasinoAction.PlaceBank)return casinoApproached&&!chipAnimator.running&&!bankPlaced;
+        if(a==CasinoAction.PlacePlayer)return casinoApproached&&!chipAnimator.running&&!playerPlaced;
         if(a==CasinoAction.Deal)return !revealRequested;
         if(a==CasinoAction.Convert)return evidence.Count==3;
         if(a==CasinoAction.Report)return evidence.Contains("libro")&&evidence.Contains("alerta");
@@ -53,7 +66,24 @@ public class GameManager : MonoBehaviour
     {
         get
         {
-            if (finished) return Frozen ? "Portal bloqueado · Compara con Ataque" : "Caso completado · Compara con Defensa";
+            switch (Tutorial)
+            {
+                case CasinoTutorialStep.ChooseMode: return UsesGaze ? "Mira ATAQUE o DEFENSA hasta llenar el círculo" : "Haz clic en ATAQUE o DEFENSA";
+                case CasinoTutorialStep.SelectBook:
+                    if (!ReadyForBook) return "Escucha o lee lo que ocurrió en el banco";
+                    return UsesGaze ? "Practica · Mira el LIBRO hasta llenar el círculo" : "Practica · Haz clic en el LIBRO";
+                case CasinoTutorialStep.CloseBook: return UsesGaze ? "Para cerrar, aparta la mirada y vuelve al LIBRO" : "Haz clic otra vez en el LIBRO para cerrarlo";
+                case CasinoTutorialStep.Move: return UsesGaze ? "Mira el círculo ACERCARSE en el suelo" : "Haz clic en el círculo ACERCARSE";
+            }
+            return CaseObjective;
+        }
+    }
+
+    string CaseObjective
+    {
+        get
+        {
+            if (finished) return Frozen ? "Portal bloqueado · COMPARAR ATAQUE" : "Caso completado · COMPARAR DEFENSA";
             if (mode == SimMode.Defensa)
             {
                 if (!evidence.Contains("libro")) return "Defensa · Revisa el libro del mostrador";
@@ -64,20 +94,24 @@ public class GameManager : MonoBehaviour
             if(!evidence.Contains("cambio")) return "Ataque · Revisa el comprobante de cambio";
             if(!evidence.Contains("alerta")) return "Ataque · Revisa la alerta de la terminal";
             if(!converted) return "Registra el cambio en la consola";
-            if(!inCasino) return "Usa el portal para entrar al casino";
+            if(!inCasino) return "Selecciona el portal ENTRAR AL CASINO";
+            if(!casinoApproached) return "Selecciona el círculo ACERCARSE, frente a la mesa";
             if(chipAnimator.running)return "Observa cómo se colocan las fichas";
-            if(!bankPlaced&&!playerPlaced)return "Coloca fichas en Banca o Jugador";
-            if(!bankPlaced)return "Completa el grupo de Banca";
-            if(!playerPlaced)return "Completa el grupo de Jugador";
+            if(!bankPlaced&&!playerPlaced)return "Elige FICHAS A BANCA o FICHAS A JUGADOR";
+            if(!bankPlaced)return "Selecciona FICHAS A BANCA";
+            if(!playerPlaced)return "Selecciona FICHAS A JUGADOR";
             if(revealRequested&&!dealt)return "Observa el giro de las cartas sobre el tapete";
-            if(!dealt)return "Revela las cartas desde la consola lateral";
-            if(counter.cashOut==0) return "Canjea las fichas en la consola";
-            if(explaining&&!explained) return "Elige la explicación en la consola lateral";
-            return explained ? "Cierra el caso en la consola" : "Abre Explicar el caso en la consola";
+            if(!dealt)return "Selecciona REVELAR CARTAS";
+            if(counter.cashOut==0) return "Selecciona CANJEAR FICHAS";
+            if(explaining&&!explained) return "Elige OCULTA EL ORIGEN o GANANCIA SEGURA";
+            return explained ? "Selecciona CERRAR CASO" : "Selecciona EXPLICAR EL CASO";
         }
     }
     public bool IsNext(CasinoAction a)
     {
+        if (Tutorial != CasinoTutorialStep.Complete)
+            return Tutorial == CasinoTutorialStep.Move ? a == CasinoAction.Approach
+                : (Tutorial == CasinoTutorialStep.SelectBook || Tutorial == CasinoTutorialStep.CloseBook) && ReadyForBook && a == CasinoAction.Ledger;
         if(finished) return a==(mode==SimMode.Ataque?CasinoAction.Defense:CasinoAction.Attack);
         if(mode==SimMode.Defensa)
         {
@@ -90,6 +124,7 @@ public class GameManager : MonoBehaviour
         if(!evidence.Contains("alerta"))return a==CasinoAction.SharedAlert;
         if(!converted)return a==CasinoAction.Convert;
         if(!inCasino)return a==CasinoAction.ToCasino;
+        if(!casinoApproached)return a==CasinoAction.Approach;
         if(chipAnimator.running)return false;
         if(!bankPlaced||!playerPlaced)return (a==CasinoAction.PlaceBank&&!bankPlaced)||(a==CasinoAction.PlacePlayer&&!playerPlaced);
         if(!dealt)return a==CasinoAction.Deal;
@@ -116,14 +151,15 @@ public class GameManager : MonoBehaviour
         if(!ValidateConfiguration(out issue))
         {
             Debug.LogError("CASINO V5 INCOMPLETO: "+issue+" Deten Play y ejecuta Casino 8 > Abrir proyecto > Crear escenario. Revisa el aviso de creacion antes de Play.");
-            foreach(var pointer in FindObjectsByType<CasinoPointer>(FindObjectsSortMode.None))pointer.enabled=false;
+            foreach(var controller in FindObjectsByType<CasinoPointer>())controller.enabled=false;
             I=null;enabled=false;return;
         }
         ui.PrepareField(this);
         narrator = gameObject.AddComponent<CasinoNarrator>();
         narrator.Initialize(ui, audioManager);
+        pointer = playerRig.GetComponent<CasinoPointer>();
         CasinoOperationsRoom.Install(this);
-        ResetScenario(SimMode.Ataque);
+        StartAtModePicker();
     }
     void OnDestroy() { if (I == this) I = null; }
     public void RegisterEvidence(string id) { evidence.Add(id); ui.Refresh(this); }
@@ -142,11 +178,35 @@ public class GameManager : MonoBehaviour
     }
     public void ResetScenario(SimMode nextMode)
     {
+        if (Teleporting) return;
+        if (Vector3.Distance(playerRig.position, exchangeSpawn.position) > .2f)
+            Travel(exchangeSpawn.position, () => PrepareRun(nextMode, false));
+        else
+        {
+            PlaceRig(exchangeSpawn.position);
+            PrepareRun(nextMode, false);
+        }
+    }
+
+    internal void StartAtModePicker()
+    {
+        PlaceRig(exchangeSpawn.position);
+        PrepareRun(SimMode.Ataque, true);
+    }
+
+    void PrepareRun(SimMode nextMode, bool chooseMode)
+    {
         mode = nextMode; bankPlaced=false; playerPlaced=false; dealt=false; revealRequested=false; explaining=false; finished=false; evidence.Clear(); defenses.Clear(); converted = false; inCasino = false;
         betComplete = false; explained = false; aml.frozen = false; counter.ResetCounter();
-        chipAnimator.ResetChips(); Teleport(exchangeSpawn);
+        casinoApproached = false;
+        Tutorial = chooseMode ? CasinoTutorialStep.ChooseMode : CasinoTutorialStep.SelectBook;
+        ui.ShowModePicker(chooseMode);
+        chipAnimator.ResetChips();
+        openEvidence = null;
         ui.Read("", "");
+        ui.Notice("");
         ui.Refresh(this);
+        if (chooseMode) { narrator.StopWelcome(); ui.Caption("", 0f); return; }
         bool defense = mode == SimMode.Defensa;
         narrator.Welcome(
             ("inicio-saludo", "Hola, qué bueno que llegaste. Soy tu compañera del equipo de investigación del Banco Andino. Necesitamos tu ayuda."),
@@ -155,33 +215,90 @@ public class GameManager : MonoBehaviour
             defense
                 ? ("inicio-mision-defensa", "Juntemos las pistas. Así podremos decidir si debemos detener el dinero antes de que llegue al casino.")
                 : ("inicio-mision-ataque", "Vamos a reconstruir el recorrido del dinero. Al relacionar las pistas, podremos entender cómo llegó hasta allí."),
-            Application.isEditor
-                ? ("inicio-control-editor", "Abre el libro con un clic. Para probar la mirada, pulsa G, gira con el botón derecho y mantén la mira hasta completar el círculo.")
-                : ("inicio-control-cardboard", "¿Ves el libro sobre el mostrador? Míralo. El puntero de tu mano sigue tu mirada. Mantenlo sobre el libro hasta completar el círculo."),
+            UsesGaze
+                ? ("inicio-control-cardboard", "¿Ves el libro sobre el mostrador? Míralo. El puntero de tu mano sigue tu mirada. Mantenlo sobre el libro hasta completar el círculo.")
+                : ("inicio-control-editor", "Abre el libro con un clic. Para probar la mirada, pulsa G, gira con el botón derecho y mantén la mira hasta completar el círculo."),
             ("inicio-acompana", "Vamos paso a paso. Yo te acompañaré."));
     }
-    void Teleport(Transform destination)
+    void Travel(Vector3 destination, Action onArrival = null)
     {
-        TeleportPoint(destination.position);
+        if (Teleporting) return;
+        StartCoroutine(FadeTravel(destination, onArrival));
     }
-    void TeleportPoint(Vector3 destination)
+
+    IEnumerator FadeTravel(Vector3 destination, Action onArrival)
+    {
+        Teleporting = true;
+        const float fadeSeconds = .14f;
+        for (float time = 0f; time < fadeSeconds; time += Time.unscaledDeltaTime)
+        {
+            ui.Fade(time / fadeSeconds);
+            yield return null;
+        }
+        ui.Fade(1f);
+        yield return null;
+        PlaceRig(destination);
+        onArrival?.Invoke();
+        for (float time = 0f; time < fadeSeconds; time += Time.unscaledDeltaTime)
+        {
+            ui.Fade(1f - time / fadeSeconds);
+            yield return null;
+        }
+        ui.Fade(0f);
+        Teleporting = false;
+    }
+
+    void PlaceRig(Vector3 destination)
     {
         var walker=playerRig.GetComponent<CharacterController>();
         if(walker!=null)walker.enabled=false;
         playerRig.SetPositionAndRotation(destination, Quaternion.identity);
         if(walker!=null)walker.enabled=true;
-        var pointer = playerRig.GetComponent<CasinoPointer>();
         if (pointer != null) pointer.ResetView();
+    }
+
+    bool PermittedInTutorial(CasinoAction action)
+    {
+        if (Tutorial == CasinoTutorialStep.Complete) return true;
+        if (action == CasinoAction.Attack || action == CasinoAction.Defense || action == CasinoAction.Restart
+            || action == CasinoAction.ToggleMusic || action == CasinoAction.ReplayGuide
+            || action == CasinoAction.MuteNarration || action == CasinoAction.VoiceDown || action == CasinoAction.VoiceUp)
+            return true;
+        if (Tutorial == CasinoTutorialStep.Move) return action == CasinoAction.Approach;
+        return Tutorial != CasinoTutorialStep.ChooseMode && action == CasinoAction.Ledger && ReadyForBook;
     }
     public void Act(CasinoAction action)
     {
+        if (Teleporting) return;
         switch (action)
         {
             case CasinoAction.ReplayGuide: narrator.Replay(); return;
             case CasinoAction.MuteNarration: narrator.ToggleMute(); return;
             case CasinoAction.VoiceDown: narrator.AdjustVolume(-.25f); return;
             case CasinoAction.VoiceUp: narrator.AdjustVolume(.25f); return;
+            case CasinoAction.ToggleMusic: audioManager.ToggleMusic(); return;
         }
+        if (!PermittedInTutorial(action))
+        {
+            ui.Notice(Tutorial == CasinoTutorialStep.ChooseMode ? "Primero elige un recorrido." : "Primero completa la práctica indicada arriba.");
+            return;
+        }
+        if (openEvidence == action)
+        {
+            openEvidence = null;
+            ui.Read("", "");
+            audioManager.Select();
+            if (Tutorial == CasinoTutorialStep.CloseBook)
+            {
+                Tutorial = CasinoTutorialStep.Move;
+                if (UsesGaze)
+                    Guide("tutorial-mover-cardboard", "Busca el círculo ACERCARSE en el suelo. Mantén la mirada sobre él hasta llenar el círculo del puntero. Te llevará junto al mostrador.");
+                else
+                    Guide("tutorial-mover-editor", "Haz clic en el círculo ACERCARSE del suelo. Te llevará junto al mostrador.");
+            }
+            return;
+        }
+        openEvidence = null;
         audioManager.SelectAction(action);
         ui.Read("", "");
         switch (action)
@@ -200,6 +317,7 @@ public class GameManager : MonoBehaviour
             case CasinoAction.PlaceBank:
             case CasinoAction.PlacePlayer:
                 if(!inCasino||aml.frozen){Show("MESA NO DISPONIBLE\nCompleta la casa de cambio y cruza el portal.");return;}
+                if(!casinoApproached){ui.Notice("Primero selecciona el círculo ACERCARSE.");return;}
                 if(chipAnimator.running){Show("ESPERA UN MOMENTO\nLas fichas se estan colocando.");return;}
                 bool bank=action==CasinoAction.PlaceBank;
                 if(bank?bankPlaced:playerPlaced){Show("FICHAS YA COLOCADAS\nContinua con el siguiente paso.");return;}
@@ -209,13 +327,14 @@ public class GameManager : MonoBehaviour
                 if(revealRequested)return;
                 revealRequested=true;ui.Refresh(this);return;
             case CasinoAction.ToConsole:
-                TeleportPoint(new Vector3((inCasino?20:0)-2.5f,1.75f,-.75f));return;
+                Travel(new Vector3((inCasino?casinoSpawn.position.x:exchangeSpawn.position.x)-2.5f,1.75f,-.75f),
+                    () => { if (inCasino) casinoApproached = true; });
+                return;
             case CasinoAction.Approach:
-                TeleportPoint(new Vector3(inCasino?20:0,1.75f,-2.5f)); return;
+                Travel((inCasino ? casinoSpawn : exchangeSpawn).position + Vector3.forward * 2f, OnApproach);
+                return;
             case CasinoAction.Overview:
-                Teleport(inCasino?casinoSpawn:exchangeSpawn); return;
-            case CasinoAction.ToggleMusic:
-                audioManager.ToggleMusic(); return;
+                Travel((inCasino?casinoSpawn:exchangeSpawn).position); return;
             case CasinoAction.Attack: ResetScenario(SimMode.Ataque); return;
             case CasinoAction.Defense: ResetScenario(SimMode.Defensa); return;
             case CasinoAction.Restart: ResetScenario(mode); return;
@@ -251,12 +370,24 @@ public class GameManager : MonoBehaviour
             case CasinoAction.ToCasino:
                 if (aml.frozen) { ui.Read("Portal bloqueado", $"Retenido: {MoneyCounter.Short(counter.frozen)} · Al casino: US$ 0\nLa barrera representa la intervención del ejercicio."); return; }
                 if (mode == SimMode.Defensa) { Show("MODO DEFENSA\nEmite el ROS en la casa de cambio antes del casino.\nPara ver el flujo sin controles, elige ATAQUE."); return; }
-                if (!converted || evidence.Count < 3) { Show("Antes de cruzar: registra las 3 evidencias\ny pulsa CONVERTIR."); return; }
-                inCasino = true; counter.stage = "Casino / fichas"; Teleport(casinoSpawn);
-                Guide("entrada-casino", "Ya estás en el casino. Las fichas representan fondos convertidos desde pesos. Mira el círculo de acercamiento o el de la consola para colocar los dos grupos."); return;
+                if (!converted || evidence.Count < 3) { ui.Notice("Revisa las tres evidencias y selecciona REGISTRAR CAMBIO en la consola."); return; }
+                Travel(casinoSpawn.position, () =>
+                {
+                    inCasino = true;
+                    casinoApproached = false;
+                    counter.stage = "Casino / fichas";
+                    ui.Refresh(this);
+                    Guide("entrada-casino", "Ya estás en el casino. Las fichas representan los fondos convertidos desde pesos. Selecciona el círculo ACERCARSE frente a la mesa.");
+                });
+                return;
             case CasinoAction.ToExchange:
                 if(chipAnimator.running){Show("ESPERA\nTermina de colocar las fichas antes de salir.");return;}
-                inCasino=false; Teleport(exchangeSpawn); Show("Regresaste a la casa de cambio.\nEl recorrido conserva las evidencias registradas."); return;
+                Travel(exchangeSpawn.position, () =>
+                {
+                    inCasino = false;
+                    Show("Casa de cambio\nTus evidencias registradas siguen en el recorrido.");
+                });
+                return;
             case CasinoAction.Bet:
                 Show("MESA DE BACARA / TU TURNO\nSelecciona COLOCAR EN BANCA y COLOCAR EN JUGADOR.\nDespues revela las cartas. Es una escena educativa, no una partida completa.");return;
             case CasinoAction.CashOut:
@@ -278,6 +409,23 @@ public class GameManager : MonoBehaviour
                 Show("CREDITOS / ESCENARIO 08\nEscenario: guia Banco Andino del curso.\nModelos 3D, musica y sonidos originales de esta entrega.\nCardboard: Google, Apache 2.0. Unity/URP: sus licencias.\nImplementacion asistida por ChatGPT/Codex.\nEquipo: completar nombres, roles y fuentes en LEEME."); return;
         }
     }
+
+    void OnApproach()
+    {
+        if (inCasino)
+        {
+            if (casinoApproached) return;
+            casinoApproached = true;
+            Guide("mesa-acercamiento", "Ya estás junto a la mesa. Selecciona FICHAS A BANCA o FICHAS A JUGADOR en la consola lateral.");
+            return;
+        }
+        if (Tutorial != CasinoTutorialStep.Move) return;
+        Tutorial = CasinoTutorialStep.Complete;
+        if (mode == SimMode.Defensa)
+            Guide("tutorial-llegada-defensa", "Ya estás junto al mostrador. Selecciona ALERTA para averiguar qué aviso recibió el banco.");
+        else
+            Guide("tutorial-llegada-ataque", "Ya estás junto al mostrador. Selecciona COMPROBANTE para averiguar qué pasó con el dinero.");
+    }
     void OpenLedger()
     {
         bool pattern = StructuringDetector.Detect(data.operations, data.demonstrationThreshold, out long total, out int count);
@@ -298,9 +446,24 @@ public class GameManager : MonoBehaviour
     {
         bool first = !HasEvidence(key);
         RegisterEvidence(key);
-        ui.Read(title, body);
+        string label = key == "libro" ? "LIBRO" : key == "cambio" ? "COMPROBANTE" : "ALERTA";
+        openEvidence = key == "libro" ? CasinoAction.Ledger : key == "cambio" ? CasinoAction.Receipt : CasinoAction.SharedAlert;
+        string hint = Tutorial == CasinoTutorialStep.SelectBook ? ""
+            : UsesGaze ? $"Aparta la mirada y vuelve a {label} para cerrar." : $"Haz clic otra vez en {label} para cerrar.";
+        ui.Read(title, body, hint);
         if (!first) return;
-        string next = Objective;
+        if (Tutorial == CasinoTutorialStep.SelectBook)
+        {
+            Tutorial = CasinoTutorialStep.CloseBook;
+            ui.Notice("LIBRO seleccionado");
+            narrator.StopWelcome();
+            if (UsesGaze)
+                Guide("tutorial-libro-cardboard", speech + " Cuando termines, aparta la mirada y vuelve al LIBRO para cerrar.");
+            else
+                Guide("tutorial-libro-editor", speech + " Cuando termines, vuelve a hacer clic en el LIBRO para cerrar.");
+            return;
+        }
+        string next = CaseObjective;
         int modeSeparator = next.IndexOf(" · ");
         if (modeSeparator >= 0) next = next.Substring(modeSeparator + 3);
         Guide(clip + "-" + NextEvidenceClip(), speech + " " + next + ".");

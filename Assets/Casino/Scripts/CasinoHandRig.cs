@@ -127,7 +127,7 @@ public sealed class CasinoHandRig : MonoBehaviour
         if (!beam.enabled) return;
         beam.positionCount = 2;
         beam.SetPosition(0, indexTip.position);
-        beam.SetPosition(1, Vector3.Lerp(indexTip.position, endpoint, .81f));
+        beam.SetPosition(1, endpoint);
         Paint(beam, color);
     }
 
