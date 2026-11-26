@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Audio;
 
 public sealed class CasinoNarrator : MonoBehaviour
 {
@@ -30,6 +31,14 @@ public sealed class CasinoNarrator : MonoBehaviour
         voice = gameObject.AddComponent<AudioSource>();
         voice.playOnAwake = false;
         voice.spatialBlend = 0;
+
+        var radioMixer = Resources.Load<AudioMixer>("NarradorMixer");
+        if (radioMixer != null)
+        {
+            var groups = radioMixer.FindMatchingGroups("Master");
+            if (groups.Length > 0) voice.outputAudioMixerGroup = groups[0];
+        }
+
         deviceSpeech = new CasinoDeviceSpeech();
         volume = Mathf.Clamp01(PlayerPrefs.GetFloat("Casino.VoiceVolume", .75f));
         muted = PlayerPrefs.GetInt("Casino.VoiceMuted") != 0;
